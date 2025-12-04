@@ -5,7 +5,7 @@ import re
 import json
 
 # ========== Configuration ==========
-DIRECTORY = Path("/home/eno/Desktop/kbase")
+DIRECTORY = Path("notes")
 OUTPUT_HTML = Path("graph.html")
 
 TAG_COLORS = {
@@ -24,7 +24,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Notes graph (dark) — Backlinks</title>
+  <title>Notes graph</title>
   <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
   <link href="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.css" rel="stylesheet" />
   <style>
@@ -94,7 +94,7 @@ var allTags = Array.from(new Set(rawNodes.flatMap(n => n.tags || []))).sort();
 var nodesDS = new vis.DataSet(rawNodes.map(function(n){
   return {
     id: n.id, label: n.title || n.file, title: n.title || n.file,
-    tags: n.tags || [], url: n.url, color: n.color, hidden: false
+    tags: n.tags || [], url: n.url, color: n.color, hidden: false, file: n.file
   };
 }));
 
@@ -146,7 +146,7 @@ network.on("click", function(params) {
         if (!srcNode) return;
         var item = document.createElement('div');
         item.className = "backlink-item";
-        item.textContent = (srcNode.title || srcNode.label) + " — " + (srcNode.file || "");
+        item.textContent = (srcNode.title || srcNode.label);
         item.addEventListener('click', function(){ if (srcNode.url) window.open(srcNode.url); });
         backlinksContainer.appendChild(item);
       });
@@ -233,6 +233,8 @@ function applyFilters() {
 
   nodesDS.forEach(function(n){
     var passTag = !activeTagFilter.size || (n.tags && n.tags.some(t=>activeTagFilter.has(t)));
+    // important: if node is part of search result, show it regardless of tag filter
+    if (nodesToShowBySearch && nodesToShowBySearch.has(n.id)) passTag = true;
     var passSearch = nodesToShowBySearch === null || nodesToShowBySearch.has(n.id);
     nodesDS.update({id: n.id, hidden: !(passTag && passSearch)});
   });
@@ -242,6 +244,35 @@ function applyFilters() {
     var toNode = nodesDS.get(e.to);
     edgesDS.update({id: e.id, hidden: (fromNode && fromNode.hidden) || (toNode && toNode.hidden)});
   });
+
+  // If the user provided an exact search term that matches nameToIds, auto-show backlinks panel
+  var backlinksContainer = document.getElementById('backlinksContainer');
+  if (s.length && nameToIds.hasOwnProperty(s)) {
+    backlinksContainer.innerHTML = "";
+    var ids = nameToIds[s];
+    ids.forEach(function(id){
+      var node = nodesDS.get(id);
+      if (!node) return;
+      var header = document.createElement('div');
+      header.innerHTML = "<b>" + escapeHtml(node.title || node.label) + "</b>";
+      backlinksContainer.appendChild(header);
+      var incoming = incomingMap[id] || incomingMap[String(id)] || [];
+      if (!incoming || incoming.length === 0) {
+        var none = document.createElement('div'); none.className = "small"; none.textContent = "No incoming links.";
+        backlinksContainer.appendChild(none);
+      } else {
+        incoming.forEach(function(srcId){
+          var srcNode = nodesDS.get(srcId);
+          if (!srcNode) return;
+          var item = document.createElement('div');
+          item.className = "backlink-item";
+          item.textContent = (srcNode.title || srcNode.label);
+          item.addEventListener('click', function(){ if (srcNode.url) window.open(srcNode.url); });
+          backlinksContainer.appendChild(item);
+        });
+      }
+    });
+  }
 
   updateInfo();
 }
@@ -265,9 +296,39 @@ def find_md_files(root: Path):
     return [p for p in sorted(root.iterdir()) if p.is_file() and p.suffix in MD_EXTS]
 
 def extract_links(path: Path):
+    """
+    Возвращает список ссылок (targets) из markdown-файла без фрагментов (#...) и без query (?...).
+    Отфильтровывает внешние URL (http://...) и возвращает только те targets, у которых расширение в MD_EXTS.
+    """
     try: txt = path.read_text(encoding="utf-8")
     except Exception: return []
-    return [m for m in _link_pattern.findall(txt) if Path(m).suffix in MD_EXTS]
+    results = []
+    for m in _link_pattern.findall(txt):
+        target = m.split('#', 1)[0].split('?', 1)[0].strip()
+        if not target:
+            continue
+        # skip external urls (http, https, mailto, etc.)
+        if re.match(r'^[a-zA-Z]+://', target):
+            continue
+        # normalize ./ and other simple bits
+        target_path = Path(target)
+        if target_path.suffix in MD_EXTS:
+            results.append(target)
+        else:
+            # попытка: если ссылка без расширения, добавить возможные расширения
+            for ext in MD_EXTS:
+                cand = str(target) + ext
+                if Path(cand).suffix in MD_EXTS:
+                    results.append(cand)
+                    break
+    # уникальность + порядок
+    seen = set()
+    out = []
+    for r in results:
+        if r not in seen:
+            seen.add(r)
+            out.append(r)
+    return out
 
 def parse_frontmatter(path: Path):
     try: txt = path.read_text(encoding="utf-8")
@@ -300,26 +361,51 @@ def build_graph(root: Path):
         color = TAG_COLORS.get(tags[0], DEFAULT_COLOR) if tags else DEFAULT_COLOR
         nodes.append({"id": i, "file": p.name, "title": title, "tags": tags, "url": f"file://{p}", "color": color})
 
+    # Build edges, avoiding duplicates:
     edges = []
-    seen = set()
-    for p in abs_files:
-        for link in extract_links(p):
-            cand1, cand2 = (p.parent / link).resolve(), (root / link).resolve()
-            resolved = cand1 if cand1 in index else (cand2 if cand2 in index else None)
-            if resolved is None: continue
-            a, b = index[p], index[resolved]
-            if (a, b) in seen: continue
-            seen.add((a, b))
-            edges.append({"id": f"e_{len(edges)}", "from": a, "to": b})
+    seen_dir = set()        # directed pairs we've already seen (a,b)
+    undirected_seen = set() # unordered pair keys to ensure single visual edge per pair
 
+    for p in abs_files:
+        a = index[p]
+        for link in extract_links(p):
+            # link already has fragments removed in extract_links
+            cand1 = (p.parent / link).resolve()
+            cand2 = (root / link).resolve()
+            resolved = cand1 if cand1 in index else (cand2 if cand2 in index else None)
+            if resolved is None:
+                continue
+            b = index[resolved]
+            # --- ADDED: skip self-links (link to the same file or its heading) ---
+            if a == b:
+                continue
+            if (a, b) in seen_dir:
+                continue
+            seen_dir.add((a, b))
+            pair = tuple(sorted((a, b)))
+            if pair in undirected_seen:
+                continue
+            undirected_seen.add(pair)
+            edges.append({"id": f"e_{len(edges)}", "from": pair[0], "to": pair[1]})
+
+    # name -> ids mapping (by file stem, file name, and title) for exact search
     name_to_ids = {}
     for n in nodes:
-        key = Path(n["file"]).stem.lower()
-        name_to_ids.setdefault(key, []).append(n["id"])
+        stem = Path(n["file"]).stem.lower()
+        name_to_ids.setdefault(stem, []).append(n["id"])
+        name_to_ids.setdefault(n["file"].lower(), []).append(n["id"])
+        if n.get("title"):
+            name_to_ids.setdefault(n["title"].lower(), []).append(n["id"])
+    # uniquify lists
+    for k, v in list(name_to_ids.items()):
+        name_to_ids[k] = sorted(list(dict.fromkeys(v)))
 
+    # incoming: build from directed set so backlinks remain accurate (unique)
     incoming = {}
-    for e in edges:
-        incoming.setdefault(e["to"], []).append(e["from"])
+    for src, dst in seen_dir:
+        incoming.setdefault(dst, set()).add(src)
+    # convert sets to lists for JSON
+    incoming = {k: sorted(list(v)) for k, v in incoming.items()}
 
     return nodes, edges, name_to_ids, incoming
 
