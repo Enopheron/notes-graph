@@ -1,0 +1,6230 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Notes Graph</title>
+  <script type="text/javascript" src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+  <link href="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.css" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #252627;
+      --panel: #2b2c2d;
+      --text: #999999;
+      --muted: #b0b0b0;
+      --border: #3a3a3a;
+      --control-bg: #2b2c2d;
+      --accent: #89CFF0;
+    }
+    * { box-sizing: border-box; }
+    html, body { 
+      height: 100%; margin: 0; 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+      background: var(--bg); color: var(--text); 
+    }
+    #topbar { 
+      display: flex; gap: 10px; padding: 12px; 
+      align-items: center; border-bottom: 1px solid var(--border); 
+      background: var(--panel); 
+    }
+    #topbar h2 { margin: 0; font-size: 18px; color: var(--accent); }
+    #controls { 
+      width: 340px; height: calc(100vh - 58px); 
+      overflow: auto; border-right: 1px solid var(--border); 
+      padding: 16px; background: var(--panel); 
+    }
+    #network { 
+      width: calc(100% - 340px); 
+      height: calc(100vh - 58px); 
+      background: var(--bg); 
+    }
+    #layout { display: flex; height: calc(100vh - 58px); }
+    
+    .section { margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    .section:last-child { border-bottom: none; }
+    .section h3 { margin: 0 0 12px 0; font-size: 14px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    .tag-row { 
+      display: flex; align-items: center; gap: 8px; 
+      margin-bottom: 8px; padding: 4px; border-radius: 4px;
+      transition: background 0.2s;
+    }
+    .tag-row:hover { background: rgba(255,255,255,0.03); }
+    
+    label.tag-label { 
+      flex: 1; display: flex; align-items: center; 
+      gap: 8px; color: var(--text); cursor: pointer;
+    }
+    .tag-swatch { 
+      width: 16px; height: 16px; border-radius: 3px; 
+      display: inline-block; border: 1px solid rgba(0,0,0,0.2); 
+    }
+    
+    .small { font-size: 12px; color: var(--muted); }
+    
+    input[type="text"] { 
+      padding: 8px 12px; flex: 1; 
+      background: var(--control-bg); color: var(--text); 
+      border: 1px solid var(--border); border-radius: 4px;
+      font-size: 14px;
+    }
+    input[type="text"]:focus { 
+      outline: none; border-color: var(--accent); 
+    }
+    
+    button { 
+      padding: 6px 12px; background: var(--control-bg); 
+      color: var(--text); border: 1px solid var(--border); 
+      cursor: pointer; border-radius: 4px; font-size: 12px;
+      transition: all 0.2s;
+    }
+    button:hover { 
+      background: rgba(255,255,255,0.1); 
+      border-color: var(--accent); 
+    }
+    
+    .button-group { display: flex; gap: 8px; margin-top: 8px; }
+    
+    .backlinks-list { padding-left: 4px; }
+    .backlink-item { 
+      margin: 6px 0; padding: 6px 8px; cursor: pointer; 
+      color: var(--text); border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .backlink-item:hover { 
+      background: rgba(255,255,255,0.1); 
+      color: #ffffff; 
+    }
+    
+    .backlink-level {
+      margin-left: 0;
+    }
+    .backlink-level-1 { margin-left: 0; }
+    .backlink-level-2 { margin-left: 20px; }
+    .backlink-level-3 { margin-left: 40px; }
+    .backlink-level-4 { margin-left: 60px; }
+    .backlink-level-5 { margin-left: 80px; }
+    
+    .level-header {
+      font-size: 11px;
+      color: var(--accent);
+      margin: 12px 0 6px 0;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .slider-container {
+      margin-top: 12px;
+    }
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .slider-label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .slider-value {
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: bold;
+    }
+    input[type="range"] {
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      outline: none;
+      -webkit-appearance: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.2);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    input[type="range"]::-moz-range-thumb:hover {
+      transform: scale(1.2);
+    }
+    
+    .checkbox-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+      margin-bottom: 8px;
+    }
+    .checkbox-row:hover {
+      background: rgba(255,255,255,0.03);
+    }
+    .checkbox-row label {
+      cursor: pointer;
+      flex: 1;
+      color: var(--text);
+    }
+  </style>
+</head>
+<body>
+<div id="topbar">
+  <h2>📊 Notes Graph</h2>
+  <input id="searchInput" type="text" placeholder="Search note (Enter = find, Esc = reset)" autocomplete="off" />
+</div>
+<div id="layout">
+  <div id="controls">
+    <div class="section">
+      <h3>🔍 Filters</h3>
+      <div class="checkbox-row">
+        <input type="checkbox" id="orphanFilter" />
+        <label for="orphanFilter">Show only orphan notes</label>
+      </div>
+      
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">Connection depth:</span>
+          <span class="slider-value" id="depthValue">1</span>
+        </div>
+        <input type="range" id="depthSlider" min="1" max="5" value="1" />
+      </div>
+    </div>
+    
+    <div class="section">
+      <h3>🏷️ Tags</h3>
+      <div id="tagsContainer"></div>
+      <div class="button-group">
+        <button id="selectAllTags">Select all</button>
+        <button id="deselectAllTags">Deselect all</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>🔗 Backlinks</h3>
+      <div id="backlinksContainer" class="backlinks-list small">
+        Click a node to see backlinks
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>ℹ️ Info</h3>
+      <div id="info" class="small"></div>
+    </div>
+  </div>
+
+  <div id="network"></div>
+</div>
+
+<script>
+var rawNodes = [
+  {
+    "id": 0,
+    "file": "accumulator.qmd",
+    "title": "Accumulator",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/accumulator.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 1,
+    "file": "ai.qmd",
+    "title": "Ai",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ai.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 2,
+    "file": "android.qmd",
+    "title": "Android",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/android.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 3,
+    "file": "anki.qmd",
+    "title": "Anki",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/anki.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 4,
+    "file": "assistent.qmd",
+    "title": "Assistent",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/assistent.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 5,
+    "file": "backup.qmd",
+    "title": "Backup",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/backup.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 6,
+    "file": "bcrypt.qmd",
+    "title": "Bcrypt",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/bcrypt.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 7,
+    "file": "bi.qmd",
+    "title": "Bi",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/bi.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 8,
+    "file": "bokeh.qmd",
+    "title": "Bokeh",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/bokeh.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 9,
+    "file": "borg-backup.qmd",
+    "title": "Borg-backup",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/borg-backup.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 10,
+    "file": "bot.qmd",
+    "title": "Bot",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/bot.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 11,
+    "file": "brave.qmd",
+    "title": "Brave",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/brave.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 12,
+    "file": "browser.qmd",
+    "title": "Browser",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/browser.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 13,
+    "file": "building.qmd",
+    "title": "Building",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/building.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 14,
+    "file": "caldav.qmd",
+    "title": "Caldav",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/caldav.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 15,
+    "file": "charge-controller.qmd",
+    "title": "Charge-controller",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/charge-controller.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 16,
+    "file": "clickhouse.qmd",
+    "title": "Clickhouse",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/clickhouse.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 17,
+    "file": "clipboard.go.qmd",
+    "title": "Clipboard.go",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/clipboard.go.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 18,
+    "file": "cockpit.qmd",
+    "title": "Cockpit",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/cockpit.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 19,
+    "file": "colly.qmd",
+    "title": "Colly",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/colly.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 20,
+    "file": "container-engines.qmd",
+    "title": "Container-engines",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/container-engines.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 21,
+    "file": "container.qmd",
+    "title": "Container",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/container.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 22,
+    "file": "convert.qmd",
+    "title": "Convert",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/convert.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 23,
+    "file": "cooking.qmd",
+    "title": "Cooking",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/cooking.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 24,
+    "file": "css.qmd",
+    "title": "Css",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/css.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 25,
+    "file": "csv.qmd",
+    "title": "Csv",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/csv.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 26,
+    "file": "data.table.qmd",
+    "title": "Data.table",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/data.table.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 27,
+    "file": "db.qmd",
+    "title": "Db",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/db.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 28,
+    "file": "dbeaver.qmd",
+    "title": "Dbeaver",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dbeaver.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 29,
+    "file": "de.qmd",
+    "title": "De",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/de.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 30,
+    "file": "debian.qmd",
+    "title": "Debian",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/debian.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 31,
+    "file": "disiplin.qmd",
+    "title": "Disiplin",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/disiplin.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 32,
+    "file": "distribution.qmd",
+    "title": "Distribution",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/distribution.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 33,
+    "file": "dns.qmd",
+    "title": "Dns",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dns.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 34,
+    "file": "docker.qmd",
+    "title": "Docker",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/docker.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 35,
+    "file": "dplyr.qmd",
+    "title": "Dplyr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dplyr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 36,
+    "file": "dra.qmd",
+    "title": "Dra",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dra.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 37,
+    "file": "drawio.qmd",
+    "title": "Drawio",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/drawio.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 38,
+    "file": "driwing.qmd",
+    "title": "Driwing",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/driwing.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 39,
+    "file": "ds.qmd",
+    "title": "Ds",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ds.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 40,
+    "file": "dtplyr.qmd",
+    "title": "Dtplyr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dtplyr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 41,
+    "file": "duckdb.qmd",
+    "title": "Duckdb",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/duckdb.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 42,
+    "file": "duckdns.qmd",
+    "title": "Duckdns",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/duckdns.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 43,
+    "file": "dv.qmd",
+    "title": "Dv",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/dv.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 44,
+    "file": "easyocr.qmd",
+    "title": "Easyocr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/easyocr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 45,
+    "file": "economics.qmd",
+    "title": "Economics",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/economics.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 46,
+    "file": "electronics.qmd",
+    "title": "Electronics",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/electronics.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 47,
+    "file": "emacs.qmd",
+    "title": "Emacs",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/emacs.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 48,
+    "file": "encrypt.qmd",
+    "title": "Encrypt",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/encrypt.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 49,
+    "file": "english.qmd",
+    "title": "English",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/english.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 50,
+    "file": "file-manager.qmd",
+    "title": "File-manager",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/file-manager.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 51,
+    "file": "finance.qmd",
+    "title": "Finance",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/finance.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 52,
+    "file": "fine-tuning.qmd",
+    "title": "Fine-tuning",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/fine-tuning.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 53,
+    "file": "firefox.qmd",
+    "title": "Firefox",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/firefox.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 54,
+    "file": "flashcard.qmd",
+    "title": "Flashcard",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/flashcard.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 55,
+    "file": "flatpack.qmd",
+    "title": "Flatpack",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/flatpack.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 56,
+    "file": "forgejo.qmd",
+    "title": "Forgejo",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/forgejo.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 57,
+    "file": "format.qmd",
+    "title": "Format",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/format.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 58,
+    "file": "freefilesync.qmd",
+    "title": "Freefilesync",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/freefilesync.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 59,
+    "file": "frog.qmd",
+    "title": "Frog",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/frog.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 60,
+    "file": "gemini-cli.qmd",
+    "title": "Gemini-cli",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/gemini-cli.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 61,
+    "file": "ggplot.qmd",
+    "title": "Ggplot",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ggplot.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 62,
+    "file": "ghostscript.qmd",
+    "title": "Ghostscript",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ghostscript.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 63,
+    "file": "git.qmd",
+    "title": "Git",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/git.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 64,
+    "file": "github.qmd",
+    "title": "Github",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/github.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 65,
+    "file": "gitui.qmd",
+    "title": "Gitui",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/gitui.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 66,
+    "file": "glance.qmd",
+    "title": "Glance",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/glance.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 67,
+    "file": "gnome.qmd",
+    "title": "Gnome",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/gnome.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 68,
+    "file": "go-telegram.qmd",
+    "title": "Go-telegram",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/go-telegram.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 69,
+    "file": "go.qmd",
+    "title": "Go",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/go.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 70,
+    "file": "godotenv.qmd",
+    "title": "Godotenv",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/godotenv.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 71,
+    "file": "helium.qmd",
+    "title": "Helium",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/helium.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 72,
+    "file": "helix.qmd",
+    "title": "Helix",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/helix.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 73,
+    "file": "household.qmd",
+    "title": "Household",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/household.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 74,
+    "file": "html.qmd",
+    "title": "Html",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/html.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 75,
+    "file": "httpgd.r.qmd",
+    "title": "Httpgd.r",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/httpgd.r.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 76,
+    "file": "hugo.qmd",
+    "title": "Hugo",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/hugo.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 77,
+    "file": "hum-lang.qmd",
+    "title": "Hum-lang",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/hum-lang.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 78,
+    "file": "ide.qmd",
+    "title": "Ide",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ide.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 79,
+    "file": "inbox.qmd",
+    "title": "Inbox",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/inbox.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 80,
+    "file": "info.qmd",
+    "title": "Info",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/info.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 81,
+    "file": "install.os.qmd",
+    "title": "Install.os",
+    "tags": [
+      "skript"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/install.os.qmd",
+    "color": "#339966"
+  },
+  {
+    "id": 82,
+    "file": "inverter.qmd",
+    "title": "Inverter",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/inverter.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 83,
+    "file": "iwe.qmd",
+    "title": "Iwe",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/iwe.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 84,
+    "file": "jaal.qmd",
+    "title": "Jaal",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/jaal.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 85,
+    "file": "janitor.qmd",
+    "title": "Janitor",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/janitor.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 86,
+    "file": "julia.qmd",
+    "title": "Julia",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/julia.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 87,
+    "file": "jupyter.qmd",
+    "title": "Jupyter",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/jupyter.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 88,
+    "file": "kbase.qmd",
+    "title": "Kbase",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/kbase.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 89,
+    "file": "kde.qmd",
+    "title": "Kde",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/kde.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 90,
+    "file": "kryptovaluta.qmd",
+    "title": "Kryptovaluta",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/kryptovaluta.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 91,
+    "file": "ledger.qmd",
+    "title": "Ledger",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ledger.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 92,
+    "file": "libreoffice.qmd",
+    "title": "Libreoffice",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/libreoffice.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 93,
+    "file": "linkding.qmd",
+    "title": "Linkding",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/linkding.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 94,
+    "file": "linux.qmd",
+    "title": "Linux",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/linux.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 95,
+    "file": "llm.qmd",
+    "title": "Llm",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/llm.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 96,
+    "file": "logseq.qmd",
+    "title": "Logseq",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/logseq.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 97,
+    "file": "lubridate.qmd",
+    "title": "Lubridate",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/lubridate.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 98,
+    "file": "main_soft.qmd",
+    "title": "Main Soft",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/main_soft.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 99,
+    "file": "markdown-analysis.qmd",
+    "title": "Markdown-analysis",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/markdown-analysis.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 100,
+    "file": "markdown-oxide.qmd",
+    "title": "Markdown-oxide",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/markdown-oxide.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 101,
+    "file": "math.go.qmd",
+    "title": "Math.go",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/math.go.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 102,
+    "file": "math.qmd",
+    "title": "Math",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/math.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 103,
+    "file": "md.qmd",
+    "title": "Md",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/md.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 104,
+    "file": "medicine.qmd",
+    "title": "Medicine",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/medicine.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 105,
+    "file": "metabase.qmd",
+    "title": "Metabase",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/metabase.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 106,
+    "file": "minder.qmd",
+    "title": "Minder",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/minder.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 107,
+    "file": "mini_sol_stantion.qmd",
+    "title": "Mini_sol_stantion",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/mini_sol_stantion.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 108,
+    "file": "minor.qmd",
+    "title": "Minor",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/minor.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 109,
+    "file": "nautilus.qmd",
+    "title": "Nautilus",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/nautilus.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 110,
+    "file": "neovim.qmd",
+    "title": "Neovim",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/neovim.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 111,
+    "file": "nextcloud.qmd",
+    "title": "Nextcloud",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/nextcloud.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 112,
+    "file": "ngrok.qmd",
+    "title": "Ngrok",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ngrok.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 113,
+    "file": "niri.qmd",
+    "title": "Niri",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/niri.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 114,
+    "file": "norsk.qmd",
+    "title": "Norsk",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/norsk.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 115,
+    "file": "npm.qmd",
+    "title": "Npm",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/npm.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 116,
+    "file": "numpy.qmd",
+    "title": "Numpy",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/numpy.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 117,
+    "file": "nushell.qmd",
+    "title": "NuShell",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/nushell.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 118,
+    "file": "obsidian.qmd",
+    "title": "Obsidian",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/obsidian.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 119,
+    "file": "ocr.qmd",
+    "title": "Ocr",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ocr.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 120,
+    "file": "odbc-dbi.qmd",
+    "title": "Odbc-dbi",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/odbc-dbi.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 121,
+    "file": "odbc.qmd",
+    "title": "Odbc",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/odbc.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 122,
+    "file": "office.qmd",
+    "title": "Office",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/office.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 123,
+    "file": "okular.qmd",
+    "title": "Okular",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/okular.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 124,
+    "file": "ollama.qmd",
+    "title": "Ollama",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ollama.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 125,
+    "file": "onlyoffice.qmd",
+    "title": "Onlyoffice",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/onlyoffice.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 126,
+    "file": "openpyxl.qmd",
+    "title": "Openpyxl",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/openpyxl.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 127,
+    "file": "opensuse.qmd",
+    "title": "Opensuse",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/opensuse.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 128,
+    "file": "openvpn.qmd",
+    "title": "Openvpn",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/openvpn.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 129,
+    "file": "openxlsx.qmd",
+    "title": "Openxlsx",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/openxlsx.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 130,
+    "file": "oracle.qmd",
+    "title": "Oracle",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/oracle.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 131,
+    "file": "org-mode.qmd",
+    "title": "Org-mode",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/org-mode.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 132,
+    "file": "paisa.qmd",
+    "title": "Paisa",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/paisa.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 133,
+    "file": "pandas.qmd",
+    "title": "Pandas",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pandas.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 134,
+    "file": "pdf.qmd",
+    "title": "Pdf",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pdf.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 135,
+    "file": "pip.qmd",
+    "title": "Pip",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pip.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 136,
+    "file": "pipreqs.qmd",
+    "title": "Pipreqs",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pipreqs.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 137,
+    "file": "pkm.qmd",
+    "title": "Pkm",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pkm.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 138,
+    "file": "plan.qmd",
+    "title": "Plan",
+    "tags": [
+      "skript"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/plan.qmd",
+    "color": "#339966"
+  },
+  {
+    "id": 139,
+    "file": "plan_kbase.qmd",
+    "title": "Plan_kbase",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/plan_kbase.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 140,
+    "file": "plane.qmd",
+    "title": "Plane",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/plane.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 141,
+    "file": "planify.qmd",
+    "title": "Planify",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/planify.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 142,
+    "file": "plotly.qmd",
+    "title": "Plotly",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/plotly.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 143,
+    "file": "plotrix.qmd",
+    "title": "Plotrix",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/plotrix.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 144,
+    "file": "podman.qmd",
+    "title": "Podman",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/podman.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 145,
+    "file": "polars.qmd",
+    "title": "Polars",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/polars.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 146,
+    "file": "portfolio.qmd",
+    "title": "Portfolio",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/portfolio.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 147,
+    "file": "postgres.qmd",
+    "title": "Postgres",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/postgres.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 148,
+    "file": "prog-lang.qmd",
+    "title": "Prog-lang",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/prog-lang.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 149,
+    "file": "projector.qmd",
+    "title": "Projector",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/projector.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 150,
+    "file": "purrr.qmd",
+    "title": "Purrr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/purrr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 151,
+    "file": "pyperclip.qmd",
+    "title": "Pyperclip",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/pyperclip.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 152,
+    "file": "python.qmd",
+    "title": "Python",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/python.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 153,
+    "file": "qemu.qmd",
+    "title": "Qemu",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/qemu.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 154,
+    "file": "quarto.qmd",
+    "title": "quarto",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/quarto.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 155,
+    "file": "r.qmd",
+    "title": "R",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/r.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 156,
+    "file": "readxl.qmd",
+    "title": "Readxl",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/readxl.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 157,
+    "file": "remmina.qmd",
+    "title": "Remmina",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/remmina.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 158,
+    "file": "remote.qmd",
+    "title": "Remote",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/remote.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 159,
+    "file": "reprex.r.qmd",
+    "title": "Reprex.r",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/reprex.r.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 160,
+    "file": "reticulate.qmd",
+    "title": "Reticulate",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/reticulate.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 161,
+    "file": "rsshub.qmd",
+    "title": "Rsshub",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/rsshub.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 162,
+    "file": "seaborn.qmd",
+    "title": "Seaborn",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/seaborn.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 163,
+    "file": "serpl.qmd",
+    "title": "Serpl",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/serpl.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 164,
+    "file": "solar-energy.qmd",
+    "title": "Solar-energy",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/solar-energy.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 165,
+    "file": "solar-panel.qmd",
+    "title": "Solar-panel",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/solar-panel.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 166,
+    "file": "spacy.qmd",
+    "title": "Spacy",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/spacy.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 167,
+    "file": "speech-note.qmd",
+    "title": "Speech-note",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/speech-note.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 168,
+    "file": "speech_to_text.qmd",
+    "title": "Speech_to_text",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/speech_to_text.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 169,
+    "file": "sqlite.go.qmd",
+    "title": "Sqlite.go",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/sqlite.go.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 170,
+    "file": "sqlite.qmd",
+    "title": "Sqlite",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/sqlite.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 171,
+    "file": "ssh.qmd",
+    "title": "Ssh",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ssh.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 172,
+    "file": "strconv.qmd",
+    "title": "Strconv",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/strconv.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 173,
+    "file": "streamlit.qmd",
+    "title": "Streamlit",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/streamlit.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 174,
+    "file": "stringr.qmd",
+    "title": "Stringr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/stringr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 175,
+    "file": "strings.go.qmd",
+    "title": "Strings.go",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/strings.go.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 176,
+    "file": "superset.qmd",
+    "title": "Superset",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/superset.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 177,
+    "file": "sync.qmd",
+    "title": "Sync",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/sync.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 178,
+    "file": "syncthing.qmd",
+    "title": "Syncthing",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/syncthing.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 179,
+    "file": "systemd.qmd",
+    "title": "Systemd",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/systemd.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 180,
+    "file": "tasks.org.qmd",
+    "title": "Tasks.org",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tasks.org.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 181,
+    "file": "television.qmd",
+    "title": "Television",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/television.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 182,
+    "file": "term-multiplex.qmd",
+    "title": "Term-multiplex",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/term-multiplex.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 183,
+    "file": "termux.qmd",
+    "title": "Termux",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/termux.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 184,
+    "file": "tesseract.qmd",
+    "title": "Tesseract",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tesseract.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 185,
+    "file": "text-editor.qmd",
+    "title": "Text-editor",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/text-editor.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 186,
+    "file": "tibble.qmd",
+    "title": "Tibble",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tibble.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 187,
+    "file": "tidyr.qmd",
+    "title": "Tidyr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tidyr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 188,
+    "file": "time_report.qmd",
+    "title": "Time_report",
+    "tags": [
+      "skript"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/time_report.qmd",
+    "color": "#339966"
+  },
+  {
+    "id": 189,
+    "file": "tips.qmd",
+    "title": "Tips",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tips.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 190,
+    "file": "tmux.qmd",
+    "title": "Tmux",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/tmux.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 191,
+    "file": "todo.qmd",
+    "title": "Todo",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/todo.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 192,
+    "file": "traffic-rules.qmd",
+    "title": "Traffic-rules",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/traffic-rules.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 193,
+    "file": "ttdl.qmd",
+    "title": "Ttdl",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ttdl.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 194,
+    "file": "units.el.qmd",
+    "title": "Units.el",
+    "tags": [
+      "info"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/units.el.qmd",
+    "color": "#333333"
+  },
+  {
+    "id": 195,
+    "file": "usb-tools.qmd",
+    "title": "Usb-tools",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/usb-tools.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 196,
+    "file": "uv.qmd",
+    "title": "Uv",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/uv.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 197,
+    "file": "vcs.qmd",
+    "title": "Vcs",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/vcs.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 198,
+    "file": "ventoy.qmd",
+    "title": "Ventoy",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/ventoy.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 199,
+    "file": "venv.py.qmd",
+    "title": "Venv.py",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/venv.py.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 200,
+    "file": "venv.qmd",
+    "title": "Venv",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/venv.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 201,
+    "file": "visual_tools.qmd",
+    "title": "Visual_tools",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/visual_tools.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 202,
+    "file": "vivaldi.qmd",
+    "title": "Vivaldi",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/vivaldi.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 203,
+    "file": "vm.qmd",
+    "title": "Vm",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/vm.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 204,
+    "file": "vpn.qmd",
+    "title": "Vpn",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/vpn.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 205,
+    "file": "vscode.qmd",
+    "title": "Vscode",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/vscode.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 206,
+    "file": "wayland.qmd",
+    "title": "Wayland",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/wayland.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 207,
+    "file": "web.qmd",
+    "title": "Web",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/web.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 208,
+    "file": "web_kbase.qmd",
+    "title": "Web_kbase",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/web_kbase.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 209,
+    "file": "webbrowser.py.qmd",
+    "title": "Webbrowser.py",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/webbrowser.py.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 210,
+    "file": "webr.qmd",
+    "title": "Webr",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/webr.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 211,
+    "file": "windsurf.qmd",
+    "title": "Windsurf",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/windsurf.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 212,
+    "file": "wm.qmd",
+    "title": "Wm",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/wm.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 213,
+    "file": "worktools.qmd",
+    "title": "Worktools",
+    "tags": [
+      "skript"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/worktools.qmd",
+    "color": "#339966"
+  },
+  {
+    "id": 214,
+    "file": "wps.qmd",
+    "title": "Wps",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/wps.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 215,
+    "file": "writexl.qmd",
+    "title": "Writexl",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/writexl.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 216,
+    "file": "xfreerdp.qmd",
+    "title": "Xfreerdp",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/xfreerdp.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 217,
+    "file": "xlsx.qmd",
+    "title": "Xlsx",
+    "tags": [
+      "group"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/xlsx.qmd",
+    "color": "#993366"
+  },
+  {
+    "id": 218,
+    "file": "xlsxwriter.qmd",
+    "title": "Xlsxwriter",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/xlsxwriter.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 219,
+    "file": "yazi.qmd",
+    "title": "Yazi",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/yazi.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 220,
+    "file": "zathura.qmd",
+    "title": "Zathura",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/zathura.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 221,
+    "file": "zed.qmd",
+    "title": "Zed",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/zed.qmd",
+    "color": "#999999"
+  },
+  {
+    "id": 222,
+    "file": "zellij.qmd",
+    "title": "Zellij",
+    "tags": [
+      "soft"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/zellij.qmd",
+    "color": "#996633"
+  },
+  {
+    "id": 223,
+    "file": "zen.qmd",
+    "title": "Zen",
+    "tags": [
+      "not-use"
+    ],
+    "url": "file:///home/eno/Documents/kbase/notes/zen.qmd",
+    "color": "#999999"
+  }
+];
+var rawEdges = [
+  {
+    "id": "e_0",
+    "from": 0,
+    "to": 164
+  },
+  {
+    "id": "e_1",
+    "from": 3,
+    "to": 54
+  },
+  {
+    "id": "e_2",
+    "from": 3,
+    "to": 55
+  },
+  {
+    "id": "e_3",
+    "from": 1,
+    "to": 4
+  },
+  {
+    "id": "e_4",
+    "from": 6,
+    "to": 69
+  },
+  {
+    "id": "e_5",
+    "from": 6,
+    "to": 48
+  },
+  {
+    "id": "e_6",
+    "from": 7,
+    "to": 43
+  },
+  {
+    "id": "e_7",
+    "from": 8,
+    "to": 152
+  },
+  {
+    "id": "e_8",
+    "from": 8,
+    "to": 43
+  },
+  {
+    "id": "e_9",
+    "from": 5,
+    "to": 9
+  },
+  {
+    "id": "e_10",
+    "from": 11,
+    "to": 12
+  },
+  {
+    "id": "e_11",
+    "from": 12,
+    "to": 207
+  },
+  {
+    "id": "e_12",
+    "from": 14,
+    "to": 177
+  },
+  {
+    "id": "e_13",
+    "from": 15,
+    "to": 164
+  },
+  {
+    "id": "e_14",
+    "from": 16,
+    "to": 27
+  },
+  {
+    "id": "e_15",
+    "from": 17,
+    "to": 69
+  },
+  {
+    "id": "e_16",
+    "from": 18,
+    "to": 94
+  },
+  {
+    "id": "e_17",
+    "from": 19,
+    "to": 69
+  },
+  {
+    "id": "e_18",
+    "from": 19,
+    "to": 207
+  },
+  {
+    "id": "e_19",
+    "from": 20,
+    "to": 21
+  },
+  {
+    "id": "e_20",
+    "from": 22,
+    "to": 57
+  },
+  {
+    "id": "e_21",
+    "from": 24,
+    "to": 57
+  },
+  {
+    "id": "e_22",
+    "from": 25,
+    "to": 57
+  },
+  {
+    "id": "e_23",
+    "from": 26,
+    "to": 155
+  },
+  {
+    "id": "e_24",
+    "from": 26,
+    "to": 39
+  },
+  {
+    "id": "e_25",
+    "from": 25,
+    "to": 26
+  },
+  {
+    "id": "e_26",
+    "from": 28,
+    "to": 78
+  },
+  {
+    "id": "e_27",
+    "from": 27,
+    "to": 28
+  },
+  {
+    "id": "e_28",
+    "from": 29,
+    "to": 94
+  },
+  {
+    "id": "e_29",
+    "from": 30,
+    "to": 32
+  },
+  {
+    "id": "e_30",
+    "from": 31,
+    "to": 191
+  },
+  {
+    "id": "e_31",
+    "from": 32,
+    "to": 94
+  },
+  {
+    "id": "e_32",
+    "from": 33,
+    "to": 207
+  },
+  {
+    "id": "e_33",
+    "from": 14,
+    "to": 33
+  },
+  {
+    "id": "e_34",
+    "from": 20,
+    "to": 34
+  },
+  {
+    "id": "e_35",
+    "from": 35,
+    "to": 155
+  },
+  {
+    "id": "e_36",
+    "from": 35,
+    "to": 39
+  },
+  {
+    "id": "e_37",
+    "from": 37,
+    "to": 201
+  },
+  {
+    "id": "e_38",
+    "from": 38,
+    "to": 201
+  },
+  {
+    "id": "e_39",
+    "from": 40,
+    "to": 155
+  },
+  {
+    "id": "e_40",
+    "from": 39,
+    "to": 40
+  },
+  {
+    "id": "e_41",
+    "from": 27,
+    "to": 41
+  },
+  {
+    "id": "e_42",
+    "from": 33,
+    "to": 42
+  },
+  {
+    "id": "e_43",
+    "from": 44,
+    "to": 119
+  },
+  {
+    "id": "e_44",
+    "from": 44,
+    "to": 152
+  },
+  {
+    "id": "e_45",
+    "from": 47,
+    "to": 78
+  },
+  {
+    "id": "e_46",
+    "from": 49,
+    "to": 77
+  },
+  {
+    "id": "e_47",
+    "from": 41,
+    "to": 49
+  },
+  {
+    "id": "e_48",
+    "from": 45,
+    "to": 51
+  },
+  {
+    "id": "e_49",
+    "from": 52,
+    "to": 95
+  },
+  {
+    "id": "e_50",
+    "from": 12,
+    "to": 53
+  },
+  {
+    "id": "e_51",
+    "from": 55,
+    "to": 94
+  },
+  {
+    "id": "e_52",
+    "from": 21,
+    "to": 56
+  },
+  {
+    "id": "e_53",
+    "from": 58,
+    "to": 177
+  },
+  {
+    "id": "e_54",
+    "from": 59,
+    "to": 119
+  },
+  {
+    "id": "e_55",
+    "from": 4,
+    "to": 60
+  },
+  {
+    "id": "e_56",
+    "from": 61,
+    "to": 155
+  },
+  {
+    "id": "e_57",
+    "from": 43,
+    "to": 61
+  },
+  {
+    "id": "e_58",
+    "from": 62,
+    "to": 134
+  },
+  {
+    "id": "e_59",
+    "from": 63,
+    "to": 197
+  },
+  {
+    "id": "e_60",
+    "from": 63,
+    "to": 64
+  },
+  {
+    "id": "e_61",
+    "from": 64,
+    "to": 171
+  },
+  {
+    "id": "e_62",
+    "from": 63,
+    "to": 65
+  },
+  {
+    "id": "e_63",
+    "from": 21,
+    "to": 66
+  },
+  {
+    "id": "e_64",
+    "from": 66,
+    "to": 161
+  },
+  {
+    "id": "e_65",
+    "from": 29,
+    "to": 67
+  },
+  {
+    "id": "e_66",
+    "from": 68,
+    "to": 69
+  },
+  {
+    "id": "e_67",
+    "from": 10,
+    "to": 68
+  },
+  {
+    "id": "e_68",
+    "from": 69,
+    "to": 148
+  },
+  {
+    "id": "e_69",
+    "from": 69,
+    "to": 70
+  },
+  {
+    "id": "e_70",
+    "from": 70,
+    "to": 200
+  },
+  {
+    "id": "e_71",
+    "from": 12,
+    "to": 71
+  },
+  {
+    "id": "e_72",
+    "from": 72,
+    "to": 78
+  },
+  {
+    "id": "e_73",
+    "from": 57,
+    "to": 74
+  },
+  {
+    "id": "e_74",
+    "from": 75,
+    "to": 155
+  },
+  {
+    "id": "e_75",
+    "from": 43,
+    "to": 75
+  },
+  {
+    "id": "e_76",
+    "from": 76,
+    "to": 207
+  },
+  {
+    "id": "e_77",
+    "from": 78,
+    "to": 185
+  },
+  {
+    "id": "e_78",
+    "from": 79,
+    "to": 88
+  },
+  {
+    "id": "e_79",
+    "from": 80,
+    "to": 88
+  },
+  {
+    "id": "e_80",
+    "from": 81,
+    "to": 94
+  },
+  {
+    "id": "e_81",
+    "from": 81,
+    "to": 191
+  },
+  {
+    "id": "e_82",
+    "from": 81,
+    "to": 207
+  },
+  {
+    "id": "e_83",
+    "from": 81,
+    "to": 214
+  },
+  {
+    "id": "e_84",
+    "from": 67,
+    "to": 81
+  },
+  {
+    "id": "e_85",
+    "from": 82,
+    "to": 164
+  },
+  {
+    "id": "e_86",
+    "from": 83,
+    "to": 137
+  },
+  {
+    "id": "e_87",
+    "from": 72,
+    "to": 83
+  },
+  {
+    "id": "e_88",
+    "from": 83,
+    "to": 110
+  },
+  {
+    "id": "e_89",
+    "from": 83,
+    "to": 221
+  },
+  {
+    "id": "e_90",
+    "from": 83,
+    "to": 205
+  },
+  {
+    "id": "e_91",
+    "from": 83,
+    "to": 103
+  },
+  {
+    "id": "e_92",
+    "from": 84,
+    "to": 152
+  },
+  {
+    "id": "e_93",
+    "from": 39,
+    "to": 85
+  },
+  {
+    "id": "e_94",
+    "from": 85,
+    "to": 155
+  },
+  {
+    "id": "e_95",
+    "from": 86,
+    "to": 148
+  },
+  {
+    "id": "e_96",
+    "from": 87,
+    "to": 152
+  },
+  {
+    "id": "e_97",
+    "from": 88,
+    "to": 208
+  },
+  {
+    "id": "e_98",
+    "from": 29,
+    "to": 89
+  },
+  {
+    "id": "e_99",
+    "from": 51,
+    "to": 90
+  },
+  {
+    "id": "e_100",
+    "from": 51,
+    "to": 91
+  },
+  {
+    "id": "e_101",
+    "from": 92,
+    "to": 122
+  },
+  {
+    "id": "e_102",
+    "from": 93,
+    "to": 208
+  },
+  {
+    "id": "e_103",
+    "from": 21,
+    "to": 93
+  },
+  {
+    "id": "e_104",
+    "from": 9,
+    "to": 94
+  },
+  {
+    "id": "e_105",
+    "from": 1,
+    "to": 95
+  },
+  {
+    "id": "e_106",
+    "from": 96,
+    "to": 137
+  },
+  {
+    "id": "e_107",
+    "from": 97,
+    "to": 155
+  },
+  {
+    "id": "e_108",
+    "from": 39,
+    "to": 97
+  },
+  {
+    "id": "e_109",
+    "from": 88,
+    "to": 98
+  },
+  {
+    "id": "e_110",
+    "from": 72,
+    "to": 98
+  },
+  {
+    "id": "e_111",
+    "from": 98,
+    "to": 154
+  },
+  {
+    "id": "e_112",
+    "from": 98,
+    "to": 193
+  },
+  {
+    "id": "e_113",
+    "from": 91,
+    "to": 98
+  },
+  {
+    "id": "e_114",
+    "from": 98,
+    "to": 132
+  },
+  {
+    "id": "e_115",
+    "from": 98,
+    "to": 113
+  },
+  {
+    "id": "e_116",
+    "from": 98,
+    "to": 117
+  },
+  {
+    "id": "e_117",
+    "from": 98,
+    "to": 144
+  },
+  {
+    "id": "e_118",
+    "from": 99,
+    "to": 152
+  },
+  {
+    "id": "e_119",
+    "from": 99,
+    "to": 103
+  },
+  {
+    "id": "e_120",
+    "from": 72,
+    "to": 100
+  },
+  {
+    "id": "e_121",
+    "from": 100,
+    "to": 110
+  },
+  {
+    "id": "e_122",
+    "from": 100,
+    "to": 205
+  },
+  {
+    "id": "e_123",
+    "from": 100,
+    "to": 221
+  },
+  {
+    "id": "e_124",
+    "from": 100,
+    "to": 137
+  },
+  {
+    "id": "e_125",
+    "from": 100,
+    "to": 103
+  },
+  {
+    "id": "e_126",
+    "from": 69,
+    "to": 101
+  },
+  {
+    "id": "e_127",
+    "from": 39,
+    "to": 101
+  },
+  {
+    "id": "e_128",
+    "from": 57,
+    "to": 103
+  },
+  {
+    "id": "e_129",
+    "from": 7,
+    "to": 105
+  },
+  {
+    "id": "e_130",
+    "from": 43,
+    "to": 106
+  },
+  {
+    "id": "e_131",
+    "from": 107,
+    "to": 164
+  },
+  {
+    "id": "e_132",
+    "from": 77,
+    "to": 108
+  },
+  {
+    "id": "e_133",
+    "from": 50,
+    "to": 109
+  },
+  {
+    "id": "e_134",
+    "from": 67,
+    "to": 109
+  },
+  {
+    "id": "e_135",
+    "from": 78,
+    "to": 110
+  },
+  {
+    "id": "e_136",
+    "from": 14,
+    "to": 111
+  },
+  {
+    "id": "e_137",
+    "from": 21,
+    "to": 111
+  },
+  {
+    "id": "e_138",
+    "from": 2,
+    "to": 111
+  },
+  {
+    "id": "e_139",
+    "from": 33,
+    "to": 111
+  },
+  {
+    "id": "e_140",
+    "from": 111,
+    "to": 180
+  },
+  {
+    "id": "e_141",
+    "from": 21,
+    "to": 112
+  },
+  {
+    "id": "e_142",
+    "from": 111,
+    "to": 112
+  },
+  {
+    "id": "e_143",
+    "from": 113,
+    "to": 212
+  },
+  {
+    "id": "e_144",
+    "from": 77,
+    "to": 114
+  },
+  {
+    "id": "e_145",
+    "from": 41,
+    "to": 114
+  },
+  {
+    "id": "e_146",
+    "from": 94,
+    "to": 115
+  },
+  {
+    "id": "e_147",
+    "from": 116,
+    "to": 152
+  },
+  {
+    "id": "e_148",
+    "from": 39,
+    "to": 116
+  },
+  {
+    "id": "e_149",
+    "from": 94,
+    "to": 117
+  },
+  {
+    "id": "e_150",
+    "from": 118,
+    "to": 137
+  },
+  {
+    "id": "e_151",
+    "from": 103,
+    "to": 118
+  },
+  {
+    "id": "e_152",
+    "from": 120,
+    "to": 155
+  },
+  {
+    "id": "e_153",
+    "from": 27,
+    "to": 120
+  },
+  {
+    "id": "e_154",
+    "from": 27,
+    "to": 121
+  },
+  {
+    "id": "e_155",
+    "from": 121,
+    "to": 155
+  },
+  {
+    "id": "e_156",
+    "from": 57,
+    "to": 123
+  },
+  {
+    "id": "e_157",
+    "from": 95,
+    "to": 124
+  },
+  {
+    "id": "e_158",
+    "from": 122,
+    "to": 125
+  },
+  {
+    "id": "e_159",
+    "from": 126,
+    "to": 152
+  },
+  {
+    "id": "e_160",
+    "from": 126,
+    "to": 217
+  },
+  {
+    "id": "e_161",
+    "from": 32,
+    "to": 127
+  },
+  {
+    "id": "e_162",
+    "from": 128,
+    "to": 204
+  },
+  {
+    "id": "e_163",
+    "from": 129,
+    "to": 155
+  },
+  {
+    "id": "e_164",
+    "from": 129,
+    "to": 217
+  },
+  {
+    "id": "e_165",
+    "from": 27,
+    "to": 130
+  },
+  {
+    "id": "e_166",
+    "from": 47,
+    "to": 131
+  },
+  {
+    "id": "e_167",
+    "from": 51,
+    "to": 132
+  },
+  {
+    "id": "e_168",
+    "from": 132,
+    "to": 207
+  },
+  {
+    "id": "e_169",
+    "from": 91,
+    "to": 132
+  },
+  {
+    "id": "e_170",
+    "from": 21,
+    "to": 132
+  },
+  {
+    "id": "e_171",
+    "from": 133,
+    "to": 152
+  },
+  {
+    "id": "e_172",
+    "from": 39,
+    "to": 133
+  },
+  {
+    "id": "e_173",
+    "from": 57,
+    "to": 134
+  },
+  {
+    "id": "e_174",
+    "from": 135,
+    "to": 152
+  },
+  {
+    "id": "e_175",
+    "from": 136,
+    "to": 152
+  },
+  {
+    "id": "e_176",
+    "from": 137,
+    "to": 154
+  },
+  {
+    "id": "e_177",
+    "from": 72,
+    "to": 137
+  },
+  {
+    "id": "e_178",
+    "from": 137,
+    "to": 183
+  },
+  {
+    "id": "e_179",
+    "from": 31,
+    "to": 138
+  },
+  {
+    "id": "e_180",
+    "from": 99,
+    "to": 138
+  },
+  {
+    "id": "e_181",
+    "from": 138,
+    "to": 145
+  },
+  {
+    "id": "e_182",
+    "from": 56,
+    "to": 139
+  },
+  {
+    "id": "e_183",
+    "from": 139,
+    "to": 191
+  },
+  {
+    "id": "e_184",
+    "from": 21,
+    "to": 140
+  },
+  {
+    "id": "e_185",
+    "from": 141,
+    "to": 191
+  },
+  {
+    "id": "e_186",
+    "from": 14,
+    "to": 141
+  },
+  {
+    "id": "e_187",
+    "from": 43,
+    "to": 142
+  },
+  {
+    "id": "e_188",
+    "from": 142,
+    "to": 152
+  },
+  {
+    "id": "e_189",
+    "from": 143,
+    "to": 155
+  },
+  {
+    "id": "e_190",
+    "from": 43,
+    "to": 143
+  },
+  {
+    "id": "e_191",
+    "from": 20,
+    "to": 144
+  },
+  {
+    "id": "e_192",
+    "from": 145,
+    "to": 152
+  },
+  {
+    "id": "e_193",
+    "from": 39,
+    "to": 145
+  },
+  {
+    "id": "e_194",
+    "from": 146,
+    "to": 154
+  },
+  {
+    "id": "e_195",
+    "from": 27,
+    "to": 147
+  },
+  {
+    "id": "e_196",
+    "from": 21,
+    "to": 147
+  },
+  {
+    "id": "e_197",
+    "from": 94,
+    "to": 149
+  },
+  {
+    "id": "e_198",
+    "from": 39,
+    "to": 150
+  },
+  {
+    "id": "e_199",
+    "from": 150,
+    "to": 155
+  },
+  {
+    "id": "e_200",
+    "from": 151,
+    "to": 206
+  },
+  {
+    "id": "e_201",
+    "from": 151,
+    "to": 152
+  },
+  {
+    "id": "e_202",
+    "from": 148,
+    "to": 152
+  },
+  {
+    "id": "e_203",
+    "from": 153,
+    "to": 203
+  },
+  {
+    "id": "e_204",
+    "from": 152,
+    "to": 154
+  },
+  {
+    "id": "e_205",
+    "from": 154,
+    "to": 155
+  },
+  {
+    "id": "e_206",
+    "from": 86,
+    "to": 154
+  },
+  {
+    "id": "e_207",
+    "from": 103,
+    "to": 154
+  },
+  {
+    "id": "e_208",
+    "from": 134,
+    "to": 154
+  },
+  {
+    "id": "e_209",
+    "from": 74,
+    "to": 154
+  },
+  {
+    "id": "e_210",
+    "from": 148,
+    "to": 155
+  },
+  {
+    "id": "e_211",
+    "from": 155,
+    "to": 156
+  },
+  {
+    "id": "e_212",
+    "from": 39,
+    "to": 156
+  },
+  {
+    "id": "e_213",
+    "from": 157,
+    "to": 158
+  },
+  {
+    "id": "e_214",
+    "from": 155,
+    "to": 159
+  },
+  {
+    "id": "e_215",
+    "from": 155,
+    "to": 160
+  },
+  {
+    "id": "e_216",
+    "from": 152,
+    "to": 160
+  },
+  {
+    "id": "e_217",
+    "from": 21,
+    "to": 161
+  },
+  {
+    "id": "e_218",
+    "from": 152,
+    "to": 162
+  },
+  {
+    "id": "e_219",
+    "from": 43,
+    "to": 162
+  },
+  {
+    "id": "e_220",
+    "from": 94,
+    "to": 163
+  },
+  {
+    "id": "e_221",
+    "from": 46,
+    "to": 164
+  },
+  {
+    "id": "e_222",
+    "from": 164,
+    "to": 165
+  },
+  {
+    "id": "e_223",
+    "from": 152,
+    "to": 166
+  },
+  {
+    "id": "e_224",
+    "from": 1,
+    "to": 166
+  },
+  {
+    "id": "e_225",
+    "from": 167,
+    "to": 168
+  },
+  {
+    "id": "e_226",
+    "from": 69,
+    "to": 169
+  },
+  {
+    "id": "e_227",
+    "from": 169,
+    "to": 170
+  },
+  {
+    "id": "e_228",
+    "from": 27,
+    "to": 170
+  },
+  {
+    "id": "e_229",
+    "from": 158,
+    "to": 171
+  },
+  {
+    "id": "e_230",
+    "from": 69,
+    "to": 172
+  },
+  {
+    "id": "e_231",
+    "from": 39,
+    "to": 172
+  },
+  {
+    "id": "e_232",
+    "from": 152,
+    "to": 173
+  },
+  {
+    "id": "e_233",
+    "from": 43,
+    "to": 173
+  },
+  {
+    "id": "e_234",
+    "from": 155,
+    "to": 174
+  },
+  {
+    "id": "e_235",
+    "from": 39,
+    "to": 174
+  },
+  {
+    "id": "e_236",
+    "from": 39,
+    "to": 175
+  },
+  {
+    "id": "e_237",
+    "from": 69,
+    "to": 175
+  },
+  {
+    "id": "e_238",
+    "from": 7,
+    "to": 176
+  },
+  {
+    "id": "e_239",
+    "from": 21,
+    "to": 176
+  },
+  {
+    "id": "e_240",
+    "from": 177,
+    "to": 178
+  },
+  {
+    "id": "e_241",
+    "from": 94,
+    "to": 179
+  },
+  {
+    "id": "e_242",
+    "from": 180,
+    "to": 191
+  },
+  {
+    "id": "e_243",
+    "from": 2,
+    "to": 180
+  },
+  {
+    "id": "e_244",
+    "from": 14,
+    "to": 180
+  },
+  {
+    "id": "e_245",
+    "from": 94,
+    "to": 181
+  },
+  {
+    "id": "e_246",
+    "from": 2,
+    "to": 183
+  },
+  {
+    "id": "e_247",
+    "from": 58,
+    "to": 183
+  },
+  {
+    "id": "e_248",
+    "from": 119,
+    "to": 184
+  },
+  {
+    "id": "e_249",
+    "from": 155,
+    "to": 186
+  },
+  {
+    "id": "e_250",
+    "from": 39,
+    "to": 186
+  },
+  {
+    "id": "e_251",
+    "from": 39,
+    "to": 187
+  },
+  {
+    "id": "e_252",
+    "from": 155,
+    "to": 187
+  },
+  {
+    "id": "e_253",
+    "from": 180,
+    "to": 188
+  },
+  {
+    "id": "e_254",
+    "from": 95,
+    "to": 189
+  },
+  {
+    "id": "e_255",
+    "from": 182,
+    "to": 190
+  },
+  {
+    "id": "e_256",
+    "from": 191,
+    "to": 193
+  },
+  {
+    "id": "e_257",
+    "from": 46,
+    "to": 194
+  },
+  {
+    "id": "e_258",
+    "from": 135,
+    "to": 196
+  },
+  {
+    "id": "e_259",
+    "from": 196,
+    "to": 199
+  },
+  {
+    "id": "e_260",
+    "from": 195,
+    "to": 198
+  },
+  {
+    "id": "e_261",
+    "from": 152,
+    "to": 199
+  },
+  {
+    "id": "e_262",
+    "from": 199,
+    "to": 200
+  },
+  {
+    "id": "e_263",
+    "from": 12,
+    "to": 202
+  },
+  {
+    "id": "e_264",
+    "from": 204,
+    "to": 207
+  },
+  {
+    "id": "e_265",
+    "from": 78,
+    "to": 205
+  },
+  {
+    "id": "e_266",
+    "from": 94,
+    "to": 206
+  },
+  {
+    "id": "e_267",
+    "from": 152,
+    "to": 209
+  },
+  {
+    "id": "e_268",
+    "from": 155,
+    "to": 210
+  },
+  {
+    "id": "e_269",
+    "from": 43,
+    "to": 210
+  },
+  {
+    "id": "e_270",
+    "from": 4,
+    "to": 211
+  },
+  {
+    "id": "e_271",
+    "from": 78,
+    "to": 211
+  },
+  {
+    "id": "e_272",
+    "from": 94,
+    "to": 212
+  },
+  {
+    "id": "e_273",
+    "from": 88,
+    "to": 213
+  },
+  {
+    "id": "e_274",
+    "from": 122,
+    "to": 214
+  },
+  {
+    "id": "e_275",
+    "from": 155,
+    "to": 215
+  },
+  {
+    "id": "e_276",
+    "from": 39,
+    "to": 215
+  },
+  {
+    "id": "e_277",
+    "from": 158,
+    "to": 216
+  },
+  {
+    "id": "e_278",
+    "from": 57,
+    "to": 217
+  },
+  {
+    "id": "e_279",
+    "from": 152,
+    "to": 218
+  },
+  {
+    "id": "e_280",
+    "from": 217,
+    "to": 218
+  },
+  {
+    "id": "e_281",
+    "from": 50,
+    "to": 219
+  },
+  {
+    "id": "e_282",
+    "from": 134,
+    "to": 220
+  },
+  {
+    "id": "e_283",
+    "from": 78,
+    "to": 221
+  },
+  {
+    "id": "e_284",
+    "from": 182,
+    "to": 222
+  },
+  {
+    "id": "e_285",
+    "from": 12,
+    "to": 223
+  }
+];
+var nameToIds = {
+  "accumulator": [
+    0
+  ],
+  "accumulator.qmd": [
+    0
+  ],
+  "ai": [
+    1
+  ],
+  "ai.qmd": [
+    1
+  ],
+  "android": [
+    2
+  ],
+  "android.qmd": [
+    2
+  ],
+  "anki": [
+    3
+  ],
+  "anki.qmd": [
+    3
+  ],
+  "assistent": [
+    4
+  ],
+  "assistent.qmd": [
+    4
+  ],
+  "backup": [
+    5
+  ],
+  "backup.qmd": [
+    5
+  ],
+  "bcrypt": [
+    6
+  ],
+  "bcrypt.qmd": [
+    6
+  ],
+  "bi": [
+    7
+  ],
+  "bi.qmd": [
+    7
+  ],
+  "bokeh": [
+    8
+  ],
+  "bokeh.qmd": [
+    8
+  ],
+  "borg-backup": [
+    9
+  ],
+  "borg-backup.qmd": [
+    9
+  ],
+  "bot": [
+    10
+  ],
+  "bot.qmd": [
+    10
+  ],
+  "brave": [
+    11
+  ],
+  "brave.qmd": [
+    11
+  ],
+  "browser": [
+    12
+  ],
+  "browser.qmd": [
+    12
+  ],
+  "building": [
+    13
+  ],
+  "building.qmd": [
+    13
+  ],
+  "caldav": [
+    14
+  ],
+  "caldav.qmd": [
+    14
+  ],
+  "charge-controller": [
+    15
+  ],
+  "charge-controller.qmd": [
+    15
+  ],
+  "clickhouse": [
+    16
+  ],
+  "clickhouse.qmd": [
+    16
+  ],
+  "clipboard.go": [
+    17
+  ],
+  "clipboard.go.qmd": [
+    17
+  ],
+  "cockpit": [
+    18
+  ],
+  "cockpit.qmd": [
+    18
+  ],
+  "colly": [
+    19
+  ],
+  "colly.qmd": [
+    19
+  ],
+  "container-engines": [
+    20
+  ],
+  "container-engines.qmd": [
+    20
+  ],
+  "container": [
+    21
+  ],
+  "container.qmd": [
+    21
+  ],
+  "convert": [
+    22
+  ],
+  "convert.qmd": [
+    22
+  ],
+  "cooking": [
+    23
+  ],
+  "cooking.qmd": [
+    23
+  ],
+  "css": [
+    24
+  ],
+  "css.qmd": [
+    24
+  ],
+  "csv": [
+    25
+  ],
+  "csv.qmd": [
+    25
+  ],
+  "data.table": [
+    26
+  ],
+  "data.table.qmd": [
+    26
+  ],
+  "db": [
+    27
+  ],
+  "db.qmd": [
+    27
+  ],
+  "dbeaver": [
+    28
+  ],
+  "dbeaver.qmd": [
+    28
+  ],
+  "de": [
+    29
+  ],
+  "de.qmd": [
+    29
+  ],
+  "debian": [
+    30
+  ],
+  "debian.qmd": [
+    30
+  ],
+  "disiplin": [
+    31
+  ],
+  "disiplin.qmd": [
+    31
+  ],
+  "distribution": [
+    32
+  ],
+  "distribution.qmd": [
+    32
+  ],
+  "dns": [
+    33
+  ],
+  "dns.qmd": [
+    33
+  ],
+  "docker": [
+    34
+  ],
+  "docker.qmd": [
+    34
+  ],
+  "dplyr": [
+    35
+  ],
+  "dplyr.qmd": [
+    35
+  ],
+  "dra": [
+    36
+  ],
+  "dra.qmd": [
+    36
+  ],
+  "drawio": [
+    37
+  ],
+  "drawio.qmd": [
+    37
+  ],
+  "driwing": [
+    38
+  ],
+  "driwing.qmd": [
+    38
+  ],
+  "ds": [
+    39
+  ],
+  "ds.qmd": [
+    39
+  ],
+  "dtplyr": [
+    40
+  ],
+  "dtplyr.qmd": [
+    40
+  ],
+  "duckdb": [
+    41
+  ],
+  "duckdb.qmd": [
+    41
+  ],
+  "duckdns": [
+    42
+  ],
+  "duckdns.qmd": [
+    42
+  ],
+  "dv": [
+    43
+  ],
+  "dv.qmd": [
+    43
+  ],
+  "easyocr": [
+    44
+  ],
+  "easyocr.qmd": [
+    44
+  ],
+  "economics": [
+    45
+  ],
+  "economics.qmd": [
+    45
+  ],
+  "electronics": [
+    46
+  ],
+  "electronics.qmd": [
+    46
+  ],
+  "emacs": [
+    47
+  ],
+  "emacs.qmd": [
+    47
+  ],
+  "encrypt": [
+    48
+  ],
+  "encrypt.qmd": [
+    48
+  ],
+  "english": [
+    49
+  ],
+  "english.qmd": [
+    49
+  ],
+  "file-manager": [
+    50
+  ],
+  "file-manager.qmd": [
+    50
+  ],
+  "finance": [
+    51
+  ],
+  "finance.qmd": [
+    51
+  ],
+  "fine-tuning": [
+    52
+  ],
+  "fine-tuning.qmd": [
+    52
+  ],
+  "firefox": [
+    53
+  ],
+  "firefox.qmd": [
+    53
+  ],
+  "flashcard": [
+    54
+  ],
+  "flashcard.qmd": [
+    54
+  ],
+  "flatpack": [
+    55
+  ],
+  "flatpack.qmd": [
+    55
+  ],
+  "forgejo": [
+    56
+  ],
+  "forgejo.qmd": [
+    56
+  ],
+  "format": [
+    57
+  ],
+  "format.qmd": [
+    57
+  ],
+  "freefilesync": [
+    58
+  ],
+  "freefilesync.qmd": [
+    58
+  ],
+  "frog": [
+    59
+  ],
+  "frog.qmd": [
+    59
+  ],
+  "gemini-cli": [
+    60
+  ],
+  "gemini-cli.qmd": [
+    60
+  ],
+  "ggplot": [
+    61
+  ],
+  "ggplot.qmd": [
+    61
+  ],
+  "ghostscript": [
+    62
+  ],
+  "ghostscript.qmd": [
+    62
+  ],
+  "git": [
+    63
+  ],
+  "git.qmd": [
+    63
+  ],
+  "github": [
+    64
+  ],
+  "github.qmd": [
+    64
+  ],
+  "gitui": [
+    65
+  ],
+  "gitui.qmd": [
+    65
+  ],
+  "glance": [
+    66
+  ],
+  "glance.qmd": [
+    66
+  ],
+  "gnome": [
+    67
+  ],
+  "gnome.qmd": [
+    67
+  ],
+  "go-telegram": [
+    68
+  ],
+  "go-telegram.qmd": [
+    68
+  ],
+  "go": [
+    69
+  ],
+  "go.qmd": [
+    69
+  ],
+  "godotenv": [
+    70
+  ],
+  "godotenv.qmd": [
+    70
+  ],
+  "helium": [
+    71
+  ],
+  "helium.qmd": [
+    71
+  ],
+  "helix": [
+    72
+  ],
+  "helix.qmd": [
+    72
+  ],
+  "household": [
+    73
+  ],
+  "household.qmd": [
+    73
+  ],
+  "html": [
+    74
+  ],
+  "html.qmd": [
+    74
+  ],
+  "httpgd.r": [
+    75
+  ],
+  "httpgd.r.qmd": [
+    75
+  ],
+  "hugo": [
+    76
+  ],
+  "hugo.qmd": [
+    76
+  ],
+  "hum-lang": [
+    77
+  ],
+  "hum-lang.qmd": [
+    77
+  ],
+  "ide": [
+    78
+  ],
+  "ide.qmd": [
+    78
+  ],
+  "inbox": [
+    79
+  ],
+  "inbox.qmd": [
+    79
+  ],
+  "info": [
+    80
+  ],
+  "info.qmd": [
+    80
+  ],
+  "install.os": [
+    81
+  ],
+  "install.os.qmd": [
+    81
+  ],
+  "inverter": [
+    82
+  ],
+  "inverter.qmd": [
+    82
+  ],
+  "iwe": [
+    83
+  ],
+  "iwe.qmd": [
+    83
+  ],
+  "jaal": [
+    84
+  ],
+  "jaal.qmd": [
+    84
+  ],
+  "janitor": [
+    85
+  ],
+  "janitor.qmd": [
+    85
+  ],
+  "julia": [
+    86
+  ],
+  "julia.qmd": [
+    86
+  ],
+  "jupyter": [
+    87
+  ],
+  "jupyter.qmd": [
+    87
+  ],
+  "kbase": [
+    88
+  ],
+  "kbase.qmd": [
+    88
+  ],
+  "kde": [
+    89
+  ],
+  "kde.qmd": [
+    89
+  ],
+  "kryptovaluta": [
+    90
+  ],
+  "kryptovaluta.qmd": [
+    90
+  ],
+  "ledger": [
+    91
+  ],
+  "ledger.qmd": [
+    91
+  ],
+  "libreoffice": [
+    92
+  ],
+  "libreoffice.qmd": [
+    92
+  ],
+  "linkding": [
+    93
+  ],
+  "linkding.qmd": [
+    93
+  ],
+  "linux": [
+    94
+  ],
+  "linux.qmd": [
+    94
+  ],
+  "llm": [
+    95
+  ],
+  "llm.qmd": [
+    95
+  ],
+  "logseq": [
+    96
+  ],
+  "logseq.qmd": [
+    96
+  ],
+  "lubridate": [
+    97
+  ],
+  "lubridate.qmd": [
+    97
+  ],
+  "main_soft": [
+    98
+  ],
+  "main_soft.qmd": [
+    98
+  ],
+  "main soft": [
+    98
+  ],
+  "markdown-analysis": [
+    99
+  ],
+  "markdown-analysis.qmd": [
+    99
+  ],
+  "markdown-oxide": [
+    100
+  ],
+  "markdown-oxide.qmd": [
+    100
+  ],
+  "math.go": [
+    101
+  ],
+  "math.go.qmd": [
+    101
+  ],
+  "math": [
+    102
+  ],
+  "math.qmd": [
+    102
+  ],
+  "md": [
+    103
+  ],
+  "md.qmd": [
+    103
+  ],
+  "medicine": [
+    104
+  ],
+  "medicine.qmd": [
+    104
+  ],
+  "metabase": [
+    105
+  ],
+  "metabase.qmd": [
+    105
+  ],
+  "minder": [
+    106
+  ],
+  "minder.qmd": [
+    106
+  ],
+  "mini_sol_stantion": [
+    107
+  ],
+  "mini_sol_stantion.qmd": [
+    107
+  ],
+  "minor": [
+    108
+  ],
+  "minor.qmd": [
+    108
+  ],
+  "nautilus": [
+    109
+  ],
+  "nautilus.qmd": [
+    109
+  ],
+  "neovim": [
+    110
+  ],
+  "neovim.qmd": [
+    110
+  ],
+  "nextcloud": [
+    111
+  ],
+  "nextcloud.qmd": [
+    111
+  ],
+  "ngrok": [
+    112
+  ],
+  "ngrok.qmd": [
+    112
+  ],
+  "niri": [
+    113
+  ],
+  "niri.qmd": [
+    113
+  ],
+  "norsk": [
+    114
+  ],
+  "norsk.qmd": [
+    114
+  ],
+  "npm": [
+    115
+  ],
+  "npm.qmd": [
+    115
+  ],
+  "numpy": [
+    116
+  ],
+  "numpy.qmd": [
+    116
+  ],
+  "nushell": [
+    117
+  ],
+  "nushell.qmd": [
+    117
+  ],
+  "obsidian": [
+    118
+  ],
+  "obsidian.qmd": [
+    118
+  ],
+  "ocr": [
+    119
+  ],
+  "ocr.qmd": [
+    119
+  ],
+  "odbc-dbi": [
+    120
+  ],
+  "odbc-dbi.qmd": [
+    120
+  ],
+  "odbc": [
+    121
+  ],
+  "odbc.qmd": [
+    121
+  ],
+  "office": [
+    122
+  ],
+  "office.qmd": [
+    122
+  ],
+  "okular": [
+    123
+  ],
+  "okular.qmd": [
+    123
+  ],
+  "ollama": [
+    124
+  ],
+  "ollama.qmd": [
+    124
+  ],
+  "onlyoffice": [
+    125
+  ],
+  "onlyoffice.qmd": [
+    125
+  ],
+  "openpyxl": [
+    126
+  ],
+  "openpyxl.qmd": [
+    126
+  ],
+  "opensuse": [
+    127
+  ],
+  "opensuse.qmd": [
+    127
+  ],
+  "openvpn": [
+    128
+  ],
+  "openvpn.qmd": [
+    128
+  ],
+  "openxlsx": [
+    129
+  ],
+  "openxlsx.qmd": [
+    129
+  ],
+  "oracle": [
+    130
+  ],
+  "oracle.qmd": [
+    130
+  ],
+  "org-mode": [
+    131
+  ],
+  "org-mode.qmd": [
+    131
+  ],
+  "paisa": [
+    132
+  ],
+  "paisa.qmd": [
+    132
+  ],
+  "pandas": [
+    133
+  ],
+  "pandas.qmd": [
+    133
+  ],
+  "pdf": [
+    134
+  ],
+  "pdf.qmd": [
+    134
+  ],
+  "pip": [
+    135
+  ],
+  "pip.qmd": [
+    135
+  ],
+  "pipreqs": [
+    136
+  ],
+  "pipreqs.qmd": [
+    136
+  ],
+  "pkm": [
+    137
+  ],
+  "pkm.qmd": [
+    137
+  ],
+  "plan": [
+    138
+  ],
+  "plan.qmd": [
+    138
+  ],
+  "plan_kbase": [
+    139
+  ],
+  "plan_kbase.qmd": [
+    139
+  ],
+  "plane": [
+    140
+  ],
+  "plane.qmd": [
+    140
+  ],
+  "planify": [
+    141
+  ],
+  "planify.qmd": [
+    141
+  ],
+  "plotly": [
+    142
+  ],
+  "plotly.qmd": [
+    142
+  ],
+  "plotrix": [
+    143
+  ],
+  "plotrix.qmd": [
+    143
+  ],
+  "podman": [
+    144
+  ],
+  "podman.qmd": [
+    144
+  ],
+  "polars": [
+    145
+  ],
+  "polars.qmd": [
+    145
+  ],
+  "portfolio": [
+    146
+  ],
+  "portfolio.qmd": [
+    146
+  ],
+  "postgres": [
+    147
+  ],
+  "postgres.qmd": [
+    147
+  ],
+  "prog-lang": [
+    148
+  ],
+  "prog-lang.qmd": [
+    148
+  ],
+  "projector": [
+    149
+  ],
+  "projector.qmd": [
+    149
+  ],
+  "purrr": [
+    150
+  ],
+  "purrr.qmd": [
+    150
+  ],
+  "pyperclip": [
+    151
+  ],
+  "pyperclip.qmd": [
+    151
+  ],
+  "python": [
+    152
+  ],
+  "python.qmd": [
+    152
+  ],
+  "qemu": [
+    153
+  ],
+  "qemu.qmd": [
+    153
+  ],
+  "quarto": [
+    154
+  ],
+  "quarto.qmd": [
+    154
+  ],
+  "r": [
+    155
+  ],
+  "r.qmd": [
+    155
+  ],
+  "readxl": [
+    156
+  ],
+  "readxl.qmd": [
+    156
+  ],
+  "remmina": [
+    157
+  ],
+  "remmina.qmd": [
+    157
+  ],
+  "remote": [
+    158
+  ],
+  "remote.qmd": [
+    158
+  ],
+  "reprex.r": [
+    159
+  ],
+  "reprex.r.qmd": [
+    159
+  ],
+  "reticulate": [
+    160
+  ],
+  "reticulate.qmd": [
+    160
+  ],
+  "rsshub": [
+    161
+  ],
+  "rsshub.qmd": [
+    161
+  ],
+  "seaborn": [
+    162
+  ],
+  "seaborn.qmd": [
+    162
+  ],
+  "serpl": [
+    163
+  ],
+  "serpl.qmd": [
+    163
+  ],
+  "solar-energy": [
+    164
+  ],
+  "solar-energy.qmd": [
+    164
+  ],
+  "solar-panel": [
+    165
+  ],
+  "solar-panel.qmd": [
+    165
+  ],
+  "spacy": [
+    166
+  ],
+  "spacy.qmd": [
+    166
+  ],
+  "speech-note": [
+    167
+  ],
+  "speech-note.qmd": [
+    167
+  ],
+  "speech_to_text": [
+    168
+  ],
+  "speech_to_text.qmd": [
+    168
+  ],
+  "sqlite.go": [
+    169
+  ],
+  "sqlite.go.qmd": [
+    169
+  ],
+  "sqlite": [
+    170
+  ],
+  "sqlite.qmd": [
+    170
+  ],
+  "ssh": [
+    171
+  ],
+  "ssh.qmd": [
+    171
+  ],
+  "strconv": [
+    172
+  ],
+  "strconv.qmd": [
+    172
+  ],
+  "streamlit": [
+    173
+  ],
+  "streamlit.qmd": [
+    173
+  ],
+  "stringr": [
+    174
+  ],
+  "stringr.qmd": [
+    174
+  ],
+  "strings.go": [
+    175
+  ],
+  "strings.go.qmd": [
+    175
+  ],
+  "superset": [
+    176
+  ],
+  "superset.qmd": [
+    176
+  ],
+  "sync": [
+    177
+  ],
+  "sync.qmd": [
+    177
+  ],
+  "syncthing": [
+    178
+  ],
+  "syncthing.qmd": [
+    178
+  ],
+  "systemd": [
+    179
+  ],
+  "systemd.qmd": [
+    179
+  ],
+  "tasks.org": [
+    180
+  ],
+  "tasks.org.qmd": [
+    180
+  ],
+  "television": [
+    181
+  ],
+  "television.qmd": [
+    181
+  ],
+  "term-multiplex": [
+    182
+  ],
+  "term-multiplex.qmd": [
+    182
+  ],
+  "termux": [
+    183
+  ],
+  "termux.qmd": [
+    183
+  ],
+  "tesseract": [
+    184
+  ],
+  "tesseract.qmd": [
+    184
+  ],
+  "text-editor": [
+    185
+  ],
+  "text-editor.qmd": [
+    185
+  ],
+  "tibble": [
+    186
+  ],
+  "tibble.qmd": [
+    186
+  ],
+  "tidyr": [
+    187
+  ],
+  "tidyr.qmd": [
+    187
+  ],
+  "time_report": [
+    188
+  ],
+  "time_report.qmd": [
+    188
+  ],
+  "tips": [
+    189
+  ],
+  "tips.qmd": [
+    189
+  ],
+  "tmux": [
+    190
+  ],
+  "tmux.qmd": [
+    190
+  ],
+  "todo": [
+    191
+  ],
+  "todo.qmd": [
+    191
+  ],
+  "traffic-rules": [
+    192
+  ],
+  "traffic-rules.qmd": [
+    192
+  ],
+  "ttdl": [
+    193
+  ],
+  "ttdl.qmd": [
+    193
+  ],
+  "units.el": [
+    194
+  ],
+  "units.el.qmd": [
+    194
+  ],
+  "usb-tools": [
+    195
+  ],
+  "usb-tools.qmd": [
+    195
+  ],
+  "uv": [
+    196
+  ],
+  "uv.qmd": [
+    196
+  ],
+  "vcs": [
+    197
+  ],
+  "vcs.qmd": [
+    197
+  ],
+  "ventoy": [
+    198
+  ],
+  "ventoy.qmd": [
+    198
+  ],
+  "venv.py": [
+    199
+  ],
+  "venv.py.qmd": [
+    199
+  ],
+  "venv": [
+    200
+  ],
+  "venv.qmd": [
+    200
+  ],
+  "visual_tools": [
+    201
+  ],
+  "visual_tools.qmd": [
+    201
+  ],
+  "vivaldi": [
+    202
+  ],
+  "vivaldi.qmd": [
+    202
+  ],
+  "vm": [
+    203
+  ],
+  "vm.qmd": [
+    203
+  ],
+  "vpn": [
+    204
+  ],
+  "vpn.qmd": [
+    204
+  ],
+  "vscode": [
+    205
+  ],
+  "vscode.qmd": [
+    205
+  ],
+  "wayland": [
+    206
+  ],
+  "wayland.qmd": [
+    206
+  ],
+  "web": [
+    207
+  ],
+  "web.qmd": [
+    207
+  ],
+  "web_kbase": [
+    208
+  ],
+  "web_kbase.qmd": [
+    208
+  ],
+  "webbrowser.py": [
+    209
+  ],
+  "webbrowser.py.qmd": [
+    209
+  ],
+  "webr": [
+    210
+  ],
+  "webr.qmd": [
+    210
+  ],
+  "windsurf": [
+    211
+  ],
+  "windsurf.qmd": [
+    211
+  ],
+  "wm": [
+    212
+  ],
+  "wm.qmd": [
+    212
+  ],
+  "worktools": [
+    213
+  ],
+  "worktools.qmd": [
+    213
+  ],
+  "wps": [
+    214
+  ],
+  "wps.qmd": [
+    214
+  ],
+  "writexl": [
+    215
+  ],
+  "writexl.qmd": [
+    215
+  ],
+  "xfreerdp": [
+    216
+  ],
+  "xfreerdp.qmd": [
+    216
+  ],
+  "xlsx": [
+    217
+  ],
+  "xlsx.qmd": [
+    217
+  ],
+  "xlsxwriter": [
+    218
+  ],
+  "xlsxwriter.qmd": [
+    218
+  ],
+  "yazi": [
+    219
+  ],
+  "yazi.qmd": [
+    219
+  ],
+  "zathura": [
+    220
+  ],
+  "zathura.qmd": [
+    220
+  ],
+  "zed": [
+    221
+  ],
+  "zed.qmd": [
+    221
+  ],
+  "zellij": [
+    222
+  ],
+  "zellij.qmd": [
+    222
+  ],
+  "zen": [
+    223
+  ],
+  "zen.qmd": [
+    223
+  ]
+};
+var incomingMap = {
+  "164": [
+    0,
+    15,
+    82,
+    107,
+    165
+  ],
+  "54": [
+    3
+  ],
+  "55": [
+    3
+  ],
+  "1": [
+    4,
+    95,
+    166
+  ],
+  "69": [
+    6,
+    17,
+    19,
+    68,
+    70,
+    101,
+    169,
+    172,
+    175
+  ],
+  "48": [
+    6
+  ],
+  "43": [
+    7,
+    8,
+    61,
+    75,
+    106,
+    142,
+    143,
+    162,
+    173,
+    210
+  ],
+  "152": [
+    8,
+    44,
+    84,
+    87,
+    99,
+    116,
+    126,
+    133,
+    135,
+    136,
+    142,
+    145,
+    151,
+    154,
+    160,
+    162,
+    166,
+    173,
+    199,
+    209,
+    218
+  ],
+  "5": [
+    9
+  ],
+  "12": [
+    11,
+    53,
+    71,
+    202,
+    223
+  ],
+  "207": [
+    12,
+    19,
+    33,
+    76,
+    81,
+    132,
+    204
+  ],
+  "177": [
+    14,
+    58,
+    178
+  ],
+  "27": [
+    16,
+    28,
+    41,
+    120,
+    121,
+    130,
+    147,
+    170
+  ],
+  "94": [
+    18,
+    29,
+    32,
+    55,
+    81,
+    115,
+    117,
+    149,
+    163,
+    179,
+    181,
+    206,
+    212
+  ],
+  "20": [
+    21,
+    34,
+    144
+  ],
+  "57": [
+    22,
+    24,
+    25,
+    74,
+    103,
+    123,
+    134,
+    217
+  ],
+  "155": [
+    26,
+    35,
+    40,
+    61,
+    75,
+    85,
+    97,
+    120,
+    121,
+    129,
+    143,
+    150,
+    154,
+    156,
+    159,
+    160,
+    174,
+    186,
+    187,
+    210,
+    215
+  ],
+  "39": [
+    26,
+    35,
+    40,
+    85,
+    97,
+    101,
+    116,
+    133,
+    145,
+    150,
+    156,
+    172,
+    174,
+    175,
+    186,
+    187,
+    215
+  ],
+  "25": [
+    26
+  ],
+  "78": [
+    28,
+    47,
+    72,
+    110,
+    205,
+    211,
+    221
+  ],
+  "32": [
+    30,
+    127
+  ],
+  "191": [
+    31,
+    81,
+    139,
+    141,
+    180,
+    193
+  ],
+  "14": [
+    33,
+    111,
+    141,
+    180
+  ],
+  "201": [
+    37,
+    38
+  ],
+  "33": [
+    42,
+    111
+  ],
+  "119": [
+    44,
+    59,
+    184
+  ],
+  "77": [
+    49,
+    108,
+    114
+  ],
+  "41": [
+    49,
+    114
+  ],
+  "45": [
+    51
+  ],
+  "95": [
+    52,
+    124,
+    189
+  ],
+  "21": [
+    56,
+    66,
+    93,
+    111,
+    112,
+    132,
+    140,
+    147,
+    161,
+    176
+  ],
+  "4": [
+    60,
+    211
+  ],
+  "134": [
+    62,
+    154,
+    220
+  ],
+  "197": [
+    63
+  ],
+  "63": [
+    64,
+    65
+  ],
+  "171": [
+    64
+  ],
+  "161": [
+    66
+  ],
+  "29": [
+    67,
+    89
+  ],
+  "10": [
+    68
+  ],
+  "148": [
+    69,
+    86,
+    152,
+    155
+  ],
+  "200": [
+    70,
+    199
+  ],
+  "185": [
+    78
+  ],
+  "88": [
+    79,
+    80,
+    98,
+    213
+  ],
+  "214": [
+    81
+  ],
+  "67": [
+    81,
+    109
+  ],
+  "137": [
+    83,
+    96,
+    100,
+    118,
+    154
+  ],
+  "72": [
+    83,
+    98,
+    100,
+    137
+  ],
+  "110": [
+    83,
+    100
+  ],
+  "221": [
+    83,
+    100
+  ],
+  "205": [
+    83,
+    100
+  ],
+  "103": [
+    83,
+    99,
+    100,
+    118,
+    154
+  ],
+  "208": [
+    88,
+    93
+  ],
+  "51": [
+    90,
+    91,
+    132
+  ],
+  "122": [
+    92,
+    125,
+    214
+  ],
+  "9": [
+    94
+  ],
+  "154": [
+    98,
+    137,
+    146
+  ],
+  "193": [
+    98,
+    191
+  ],
+  "91": [
+    98,
+    132
+  ],
+  "132": [
+    98
+  ],
+  "113": [
+    98
+  ],
+  "117": [
+    98
+  ],
+  "144": [
+    98
+  ],
+  "7": [
+    105,
+    176
+  ],
+  "50": [
+    109,
+    219
+  ],
+  "2": [
+    111,
+    180,
+    183
+  ],
+  "180": [
+    111,
+    188
+  ],
+  "111": [
+    112
+  ],
+  "212": [
+    113
+  ],
+  "217": [
+    126,
+    129,
+    218
+  ],
+  "204": [
+    128
+  ],
+  "47": [
+    131
+  ],
+  "183": [
+    137
+  ],
+  "31": [
+    138
+  ],
+  "99": [
+    138
+  ],
+  "145": [
+    138
+  ],
+  "56": [
+    139
+  ],
+  "206": [
+    151
+  ],
+  "203": [
+    153
+  ],
+  "86": [
+    154
+  ],
+  "74": [
+    154
+  ],
+  "158": [
+    157,
+    171,
+    216
+  ],
+  "46": [
+    164,
+    194
+  ],
+  "168": [
+    167
+  ],
+  "170": [
+    169
+  ],
+  "58": [
+    183
+  ],
+  "182": [
+    190,
+    222
+  ],
+  "135": [
+    196
+  ],
+  "199": [
+    196
+  ],
+  "195": [
+    198
+  ]
+};
+
+var allTags = Array.from(new Set(rawNodes.flatMap(n => n.tags || []))).sort();
+
+var nodesDS = new vis.DataSet(rawNodes.map(function(n){
+  return {
+    id: n.id, label: n.title || n.file, title: n.title || n.file,
+    tags: n.tags || [], url: n.url, color: n.color, hidden: false, file: n.file
+  };
+}));
+
+var edgesDS = new vis.DataSet(rawEdges.map(function(e){
+  return { id: e.id, from: e.from, to: e.to, hidden: false, color: { color: "#666666" } };
+}));
+
+var neighbors = {};
+rawNodes.forEach(function(n){ neighbors[n.id] = new Set(); });
+rawEdges.forEach(function(e){
+  if (neighbors[e.from]) neighbors[e.from].add(e.to);
+  if (neighbors[e.to]) neighbors[e.to].add(e.from);
+});
+
+// Calculate orphan nodes (nodes with no connections)
+var orphanNodes = new Set();
+rawNodes.forEach(function(n){
+  var hasConnections = rawEdges.some(function(e){
+    return e.from === n.id || e.to === n.id;
+  });
+  if (!hasConnections) {
+    orphanNodes.add(n.id);
+  }
+});
+
+var container = document.getElementById('network');
+var data = { nodes: nodesDS, edges: edgesDS };
+var options = {
+  nodes: { 
+    shape: 'dot', 
+    size: 18, 
+    font: { color: '#999999', size: 14 },
+    borderWidth: 2,
+    borderWidthSelected: 3
+  },
+  edges: { 
+    smooth: { type: 'continuous' },
+    color: { color: "#666666", highlight: "#89CFF0" }, 
+    width: 1.5,
+    selectionWidth: 3
+  },
+  physics: { 
+    stabilization: { iterations: 150 },
+    barnesHut: { gravitationalConstant: -8000, springLength: 150 },
+    enabled: true
+  },
+  interaction: { 
+    hover: true, 
+    multiselect: true, 
+    tooltipDelay: 100,
+    navigationButtons: true,
+    keyboard: true
+  }
+};
+var network = new vis.Network(container, data, options);
+
+network.on("doubleClick", function (params) {
+  if (params.nodes && params.nodes.length > 0) {
+    var node = nodesDS.get(params.nodes[0]);
+    if (node && node.url) window.open(node.url);
+  }
+});
+
+network.on("click", function(params) {
+  var backlinksContainer = document.getElementById('backlinksContainer');
+  backlinksContainer.innerHTML = "";
+  
+  if (params.nodes && params.nodes.length > 0) {
+    var nodeId = params.nodes[0];
+    lastSelectedNodeId = nodeId;
+    var node = nodesDS.get(nodeId);
+    var title = node.title || node.label || "";
+    var connectionDepth = parseInt(depthSlider.value);
+    
+    var header = document.createElement('div');
+    header.innerHTML = "<b>" + escapeHtml(title) + "</b>";
+    header.style.marginBottom = "8px";
+    backlinksContainer.appendChild(header);
+
+    var levelsByDepth = getBacklinksByLevels([nodeId], connectionDepth);
+    
+    if (levelsByDepth.length === 0) {
+      var none = document.createElement('div');
+      none.className = "small";
+      none.textContent = "No incoming links";
+      backlinksContainer.appendChild(none);
+    } else {
+      levelsByDepth.forEach(function(levelNodes, levelIndex){
+        var levelNum = levelIndex + 1;
+        
+        // Level header
+        var levelHeader = document.createElement('div');
+        levelHeader.className = "level-header";
+        levelHeader.textContent = "Level " + levelNum + " (" + levelNodes.length + ")";
+        backlinksContainer.appendChild(levelHeader);
+        
+        // Level nodes
+        levelNodes.forEach(function(srcId){
+          var srcNode = nodesDS.get(srcId);
+          if (!srcNode) return;
+          var item = document.createElement('div');
+          item.className = "backlink-item backlink-level backlink-level-" + levelNum;
+          item.textContent = (srcNode.title || srcNode.label);
+          item.addEventListener('click', function(){ 
+            if (srcNode.url) window.open(srcNode.url); 
+          });
+          backlinksContainer.appendChild(item);
+        });
+      });
+    }
+  } else {
+    lastSelectedNodeId = null;
+    backlinksContainer.innerHTML = "Click a node to see backlinks";
+  }
+});
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, function (s) {
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
+  });
+}
+
+// Get backlinks recursively up to N levels
+function getBacklinksRecursive(nodeIds, depth) {
+  var result = new Set(nodeIds);
+  var currentLevel = new Set(nodeIds);
+  
+  for (var level = 0; level < depth; level++) {
+    var nextLevel = new Set();
+    currentLevel.forEach(function(nodeId){
+      var incoming = incomingMap[nodeId] || incomingMap[String(nodeId)] || [];
+      incoming.forEach(function(srcId){
+        if (!result.has(srcId)) {
+          result.add(srcId);
+          nextLevel.add(srcId);
+        }
+      });
+    });
+    currentLevel = nextLevel;
+    if (currentLevel.size === 0) break;
+  }
+  
+  return result;
+}
+
+// Get backlinks organized by levels
+function getBacklinksByLevels(nodeIds, maxDepth) {
+  var levels = [];
+  var visited = new Set(nodeIds);
+  var currentLevel = new Set(nodeIds);
+  
+  for (var depth = 0; depth < maxDepth; depth++) {
+    var nextLevel = new Set();
+    var levelNodes = [];
+    
+    currentLevel.forEach(function(nodeId){
+      var incoming = incomingMap[nodeId] || incomingMap[String(nodeId)] || [];
+      incoming.forEach(function(srcId){
+        if (!visited.has(srcId)) {
+          visited.add(srcId);
+          nextLevel.add(srcId);
+          levelNodes.push(srcId);
+        }
+      });
+    });
+    
+    if (levelNodes.length > 0) {
+      levels.push(levelNodes);
+    }
+    
+    currentLevel = nextLevel;
+    if (currentLevel.size === 0) break;
+  }
+  
+  return levels;
+}
+
+// Update physics based on orphan filter
+function updatePhysics(orphanMode) {
+  if (orphanMode) {
+    // Tighter grouping for orphan nodes
+    network.setOptions({
+      physics: {
+        enabled: true,
+        barnesHut: {
+          gravitationalConstant: -2000,
+          centralGravity: 0.8,
+          springLength: 50,
+          springConstant: 0.05
+        },
+        stabilization: { iterations: 200 }
+      }
+    });
+    network.stabilize();
+  } else {
+    // Default physics
+    network.setOptions({
+      physics: {
+        enabled: true,
+        barnesHut: {
+          gravitationalConstant: -8000,
+          centralGravity: 0.3,
+          springLength: 150,
+          springConstant: 0.04
+        },
+        stabilization: { iterations: 150 }
+      }
+    });
+  }
+}
+
+var tagsContainer = document.getElementById('tagsContainer');
+var activeTagFilter = new Set(allTags);
+
+function buildTagsUI() {
+  tagsContainer.innerHTML = "";
+  if (allTags.length === 0) {
+    tagsContainer.innerHTML = "<div class='small'>No tags found</div>";
+    return;
+  }
+  
+  allTags.forEach(function(tag){
+    var row = document.createElement('div');
+    row.className = "tag-row";
+    
+    var cb = document.createElement('input');
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.dataset.tag = tag;
+    cb.id = "tag-" + tag;
+    cb.addEventListener('change', onTagChange);
+    
+    var lbl = document.createElement('label');
+    lbl.className = "tag-label";
+    lbl.setAttribute('for', cb.id);
+    
+    var sw = document.createElement('span');
+    sw.className = "tag-swatch";
+    var swcolor = "#89CFF0";
+    for (var i = 0; i < rawNodes.length; i++) {
+      var nn = rawNodes[i];
+      if (nn.tags && nn.tags.length > 0 && nn.tags[0] === tag) {
+        swcolor = nn.color;
+        break;
+      }
+    }
+    sw.style.background = swcolor;
+    
+    var tspan = document.createElement('span');
+    tspan.textContent = tag;
+    
+    lbl.appendChild(sw);
+    lbl.appendChild(tspan);
+    row.appendChild(cb);
+    row.appendChild(lbl);
+    tagsContainer.appendChild(row);
+  });
+}
+
+function onTagChange(e) {
+  var tag = e.target.dataset.tag;
+  if (e.target.checked) {
+    activeTagFilter.add(tag);
+  } else {
+    activeTagFilter.delete(tag);
+  }
+  applyFilters();
+}
+
+document.getElementById('selectAllTags').addEventListener('click', function(){
+  activeTagFilter = new Set(allTags);
+  Array.from(tagsContainer.querySelectorAll('input[type="checkbox"]')).forEach(cb => cb.checked = true);
+  applyFilters();
+});
+
+document.getElementById('deselectAllTags').addEventListener('click', function(){
+  activeTagFilter = new Set();
+  Array.from(tagsContainer.querySelectorAll('input[type="checkbox"]')).forEach(cb => cb.checked = false);
+  applyFilters();
+});
+
+// Orphan filter
+var orphanFilterCheckbox = document.getElementById('orphanFilter');
+orphanFilterCheckbox.addEventListener('change', function(){
+  updatePhysics(orphanFilterCheckbox.checked);
+  applyFilters();
+});
+
+// Depth slider
+var depthSlider = document.getElementById('depthSlider');
+var depthValue = document.getElementById('depthValue');
+var lastSelectedNodeId = null;
+
+depthSlider.addEventListener('input', function(){
+  depthValue.textContent = depthSlider.value;
+  
+  // If a node is currently selected, update its backlinks display
+  if (lastSelectedNodeId !== null) {
+    var node = nodesDS.get(lastSelectedNodeId);
+    if (node) {
+      var connectionDepth = parseInt(depthSlider.value);
+      var backlinksContainer = document.getElementById('backlinksContainer');
+      backlinksContainer.innerHTML = "";
+      
+      var header = document.createElement('div');
+      header.innerHTML = "<b>" + escapeHtml(node.title || node.label) + "</b>";
+      header.style.marginBottom = "8px";
+      backlinksContainer.appendChild(header);
+      
+      var levelsByDepth = getBacklinksByLevels([lastSelectedNodeId], connectionDepth);
+      
+      if (levelsByDepth.length === 0) {
+        var none = document.createElement('div');
+        none.className = "small";
+        none.textContent = "No incoming links";
+        backlinksContainer.appendChild(none);
+      } else {
+        levelsByDepth.forEach(function(levelNodes, levelIndex){
+          var levelNum = levelIndex + 1;
+          
+          var levelHeader = document.createElement('div');
+          levelHeader.className = "level-header";
+          levelHeader.textContent = "Level " + levelNum + " (" + levelNodes.length + ")";
+          backlinksContainer.appendChild(levelHeader);
+          
+          levelNodes.forEach(function(srcId){
+            var srcNode = nodesDS.get(srcId);
+            if (!srcNode) return;
+            var item = document.createElement('div');
+            item.className = "backlink-item backlink-level backlink-level-" + levelNum;
+            item.textContent = (srcNode.title || srcNode.label);
+            item.addEventListener('click', function(){
+              if (srcNode.url) window.open(srcNode.url);
+            });
+            backlinksContainer.appendChild(item);
+          });
+        });
+      }
+    }
+  }
+  
+  applyFilters();
+});
+
+var searchInput = document.getElementById('searchInput');
+var lastSearch = "";
+
+searchInput.addEventListener('keydown', function(e){
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    lastSearch = searchInput.value.trim();
+    applyFilters();
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    searchInput.value = "";
+    lastSearch = "";
+    applyFilters();
+  }
+});
+
+function applyFilters() {
+  var s = lastSearch.trim().toLowerCase();
+  var nodesToShowBySearch = null;
+  var showOnlyOrphans = orphanFilterCheckbox.checked;
+  var connectionDepth = parseInt(depthSlider.value);
+  
+  // Reset selected node when applying filters via search
+  if (s.length > 0) {
+    lastSelectedNodeId = null;
+  }
+
+  if (s.length) {
+    if (nameToIds.hasOwnProperty(s)) {
+      nodesToShowBySearch = new Set();
+      var initialIds = nameToIds[s];
+      
+      // Get backlinks recursively based on depth
+      var backlinksSet = getBacklinksRecursive(initialIds, connectionDepth);
+      
+      // Add the original nodes
+      initialIds.forEach(function(id){ nodesToShowBySearch.add(id); });
+      // Add all backlinks
+      backlinksSet.forEach(function(id){ nodesToShowBySearch.add(id); });
+      
+    } else {
+      var matched = new Set();
+      nodesDS.forEach(function(n){
+        var txt = ((n.title || "") + " " + (n.label || "")).toLowerCase();
+        if (txt.indexOf(s) !== -1) matched.add(n.id);
+      });
+      
+      if (matched.size) {
+        nodesToShowBySearch = new Set();
+        matched.forEach(function(mid){
+          nodesToShowBySearch.add(mid);
+          if (neighbors[mid]) {
+            neighbors[mid].forEach(nb => nodesToShowBySearch.add(nb));
+          }
+        });
+      } else {
+        nodesToShowBySearch = new Set();
+      }
+    }
+  }
+
+  nodesDS.forEach(function(n){
+    var passTag = !activeTagFilter.size || (n.tags && n.tags.some(t => activeTagFilter.has(t)));
+    
+    // If search is active, it overrides tag filter
+    if (nodesToShowBySearch && nodesToShowBySearch.has(n.id)) {
+      passTag = true;
+    }
+    
+    var passSearch = nodesToShowBySearch === null || nodesToShowBySearch.has(n.id);
+    
+    // Orphan filter
+    var passOrphan = !showOnlyOrphans || orphanNodes.has(n.id);
+    
+    nodesDS.update({id: n.id, hidden: !(passTag && passSearch && passOrphan)});
+  });
+
+  edgesDS.forEach(function(e){
+    var fromNode = nodesDS.get(e.from);
+    var toNode = nodesDS.get(e.to);
+    edgesDS.update({id: e.id, hidden: (fromNode && fromNode.hidden) || (toNode && toNode.hidden)});
+  });
+
+  var backlinksContainer = document.getElementById('backlinksContainer');
+  if (s.length && nameToIds.hasOwnProperty(s)) {
+    backlinksContainer.innerHTML = "";
+    var ids = nameToIds[s];
+    ids.forEach(function(id){
+      var node = nodesDS.get(id);
+      if (!node) return;
+      
+      var header = document.createElement('div');
+      header.innerHTML = "<b>" + escapeHtml(node.title || node.label) + "</b>";
+      header.style.marginBottom = "8px";
+      backlinksContainer.appendChild(header);
+      
+      var levelsByDepth = getBacklinksByLevels([id], connectionDepth);
+      
+      if (levelsByDepth.length === 0) {
+        var none = document.createElement('div');
+        none.className = "small";
+        none.textContent = "No incoming links";
+        backlinksContainer.appendChild(none);
+      } else {
+        levelsByDepth.forEach(function(levelNodes, levelIndex){
+          var levelNum = levelIndex + 1;
+          
+          // Level header
+          var levelHeader = document.createElement('div');
+          levelHeader.className = "level-header";
+          levelHeader.textContent = "Level " + levelNum + " (" + levelNodes.length + ")";
+          backlinksContainer.appendChild(levelHeader);
+          
+          // Level nodes
+          levelNodes.forEach(function(srcId){
+            var srcNode = nodesDS.get(srcId);
+            if (!srcNode) return;
+            var item = document.createElement('div');
+            item.className = "backlink-item backlink-level backlink-level-" + levelNum;
+            item.textContent = (srcNode.title || srcNode.label);
+            item.addEventListener('click', function(){
+              if (srcNode.url) window.open(srcNode.url);
+            });
+            backlinksContainer.appendChild(item);
+          });
+        });
+      }
+    });
+  }
+
+  updateInfo();
+}
+
+function updateInfo() {
+  var shown = nodesDS.get({filter: n => !n.hidden});
+  var totalOrphans = orphanNodes.size;
+  var shownOrphans = shown.filter(n => orphanNodes.has(n.id)).length;
+  
+  var infoText = "Visible: " + shown.length + " of " + nodesDS.length + " notes";
+  if (orphanFilterCheckbox.checked) {
+    infoText += " (" + shownOrphans + " orphans)";
+  } else {
+    infoText += " (" + totalOrphans + " orphans total)";
+  }
+  
+  document.getElementById('info').innerText = infoText;
+}
+
+buildTagsUI();
+applyFilters();
+</script>
+</body>
+</html>
