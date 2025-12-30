@@ -2,7 +2,7 @@
 
 A Python tool to visualize your Markdown (and Quarto `.qmd`) notes as an interactive network graph with backlinks and tag-based filtering. The output is a standalone HTML file you can open in any browser.
 
-![](screenshots/main.png)
+![](screenshots/image.png)
 
 ## Features
 
